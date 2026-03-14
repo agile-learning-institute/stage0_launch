@@ -1,0 +1,77 @@
+# Example architecture.yaml — replace with the file from your Stage0 Architect conversation.
+# Describes domains (runbook, schema, common_code, sample, etc.) and their repos and templates.
+
+architecture:
+  organization: Your Organization
+  product: Example Product
+  environments:
+    - name: local
+    - name: development
+    - name: staging
+    - name: production
+  domains:
+    - name: runbook
+      description: SRE Automation using Stage0 Runbook System
+      repos:
+        - name: runbook_api
+          description: Runbook Automation API Server
+          template: agile-learning-institute/stage0_template_runbook_api
+          publish: make
+          type: api
+          port: 9080
+        - name: runbook_spa
+          description: Runbook SPA (utility container)
+          template: N/A
+          type: spa_ref
+          port: 9081
+    - name: schema
+      description: MongoDB Database Configuration and Management
+      repos:
+        - name: mongodb_api
+          description: MongoDB Configurator API
+          template: agile-learning-institute/stage0_template_configurator_api
+          publish: make
+          type: api
+          port: 9082
+        - name: configurator_spa
+          description: MongoDB Configurator SPA
+          template: N/A
+          type: spa_ref
+          port: 9083
+    - name: common_code
+      description: Shared code (NPM / PyPI)
+      repos:
+        - name: api_utils
+          description: Python PyPI API Utility Library
+          template: agile-learning-institute/stage0_template_py_utils
+          publish: pipenv
+          type: api
+          port: 9084
+        - name: spa_utils
+          description: Vue NPM SPA Utility Library
+          template: agile-learning-institute/stage0_template_vue_utils
+          publish: npm
+          type: spa
+          port: 9085
+    - name: sample
+      description: Sample Service Domain (use per User Journey domain)
+      data_domains:
+        controls:
+          - Control
+        creates:
+          - Create
+        consumes:
+          - Consume
+      repos:
+        - name: sample_api
+          description: Flask API with MongoDB
+          template: agile-learning-institute/stage0_template_flask_mongo
+          publish: pipenv
+          type: api
+          port: 9086
+        - name: sample_spa
+          description: Vue Vuetify SPA
+          template: agile-learning-institute/stage0_template_vue_vuetify
+          publish: npm
+          type: spa
+          port: 9087

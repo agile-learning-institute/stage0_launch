@@ -1,0 +1,17 @@
+# Stage0 Launch - run once: creates umbrella repo, merges specs, writes docker-compose to Specifications/<slug>_local
+# Run from repo root: make run (sets HOST_SPECIFICATIONS). Export GITHUB_TOKEN first; see README.
+
+services:
+  launch:
+    build: .
+    image: stage0_launch:latest
+    container_name: stage0_launch
+    environment:
+      SPECIFICATIONS: /specifications
+      HOST_SPECIFICATIONS: ${HOST_SPECIFICATIONS}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:?GITHUB_TOKEN must be set. See README.md}
+    volumes:
+      - ./Specifications:/specifications
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Container runs launch.sh then exits (stdout/stderr to host)
+    restart: "no"
