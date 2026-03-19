@@ -9,9 +9,12 @@ services:
     environment:
       SPECIFICATIONS: /specifications
       HOST_SPECIFICATIONS: ${HOST_SPECIFICATIONS}
+      LAUNCHPAD_DIR: /launchpad
+      HOST_LAUNCHPAD: ${HOST_LAUNCHPAD}
       GITHUB_TOKEN: ${GITHUB_TOKEN:?GITHUB_TOKEN must be set. See README.md}
     volumes:
       - ./Specifications:/specifications
+      - ${HOST_LAUNCHPAD}:/launchpad
       - /var/run/docker.sock:/var/run/docker.sock
     # Container runs launch.sh then exits (stdout/stderr to host)
     restart: "no"

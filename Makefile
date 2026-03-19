@@ -4,10 +4,9 @@ CONTAINER_IMAGE ?= stage0_launch:latest
 
 help:
 	@echo "Available commands:"
-	@echo "  make dev              - Run the launch script in Dev mode (SPECIFICATIONS=./Specifications, LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$)"
-	@echo "  make container        - Build container for deployment"
-	@echo "  make run              - Run the launch container (mounts SPECIFICATIONS and LAUNCHPAD_DIR)"
-	@echo "  make push             - Push the launch container to the registry"
+	@echo "  make run              	         - Run container (using ./Specifications and ../ as the launchpad)"
+	@echo "  make dev SPECIFICATIONS=<path>  - Run launch.sh (using /tmp/stage0_launchpad_<pid> as the launchpad)"
+	@echo "  make container                  - Build container for deployment"
 
 container:
 	@echo "Building container image: $(CONTAINER_IMAGE)"
@@ -15,13 +14,17 @@ container:
 	@echo "Built: $(CONTAINER_IMAGE)"
 
 dev:
+	@if [ -z "$(SPECIFICATIONS)" ]; then \
+		echo "Error: SPECIFICATIONS must be set. Example: make dev SPECIFICATIONS=/path/to/specifications"; \
+		exit 1; \
+	fi
 	@mkdir -p /tmp/stage0_launchpad_$$; \
-	echo "Running launch script in Dev mode (LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$)..."; \
-	SPECIFICATIONS=$$(pwd)/Specifications LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$ ./launch.sh
+	echo "Running launch script in Dev mode (SPECIFICATIONS=$(SPECIFICATIONS) LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$)..."; \
+	SPECIFICATIONS="$(SPECIFICATIONS)" LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$ ./launch.sh
 
 run:
 	@echo "Running launch container..."
-	@HOST_SPECIFICATIONS="$(CURDIR)/Specifications" docker compose up
+	@HOST_SPECIFICATIONS="$(CURDIR)/Specifications" HOST_LAUNCHPAD="$(CURDIR)/.." docker compose up
 
 push:
 	@echo "Pushing launch container to the registry..."

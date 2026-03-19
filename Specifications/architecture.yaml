@@ -18,12 +18,12 @@ architecture:
           template: agile-learning-institute/stage0_template_runbook_api
           publish: make
           type: api
-          port: 9080
+          port: 8500
         - name: runbook_spa
           description: Runbook SPA (utility container)
           template: N/A
           type: spa_ref
-          port: 9081
+          port: 8501
     - name: schema
       description: MongoDB Database Configuration and Management
       repos:
@@ -32,12 +32,12 @@ architecture:
           template: agile-learning-institute/stage0_template_configurator_api
           publish: make
           type: api
-          port: 9082
+          port: 8502
         - name: configurator_spa
           description: MongoDB Configurator SPA
           template: N/A
           type: spa_ref
-          port: 9083
+          port: 8503
     - name: common_code
       description: Shared code (NPM / PyPI)
       repos:
@@ -46,32 +46,58 @@ architecture:
           template: agile-learning-institute/stage0_template_py_utils
           publish: pipenv
           type: api
-          port: 9084
+          port: 8504
         - name: spa_utils
           description: Vue NPM SPA Utility Library
           template: agile-learning-institute/stage0_template_vue_utils
           publish: npm
           type: spa
-          port: 9085
-    - name: sample
-      description: Sample Service Domain (use per User Journey domain)
+          port: 8505
+    - name: game
+      description: The Healing Game Service used by patients in therapeutic care settings.
       data_domains:
         controls:
-          - Control
+          - Game
+          - Profile
         creates:
-          - Create
+          - Event
         consumes:
-          - Consume
+          - Player
       repos:
-        - name: sample_api
+        - name: game_api
           description: Flask API with MongoDB
           template: agile-learning-institute/stage0_template_flask_mongo
           publish: pipenv
           type: api
-          port: 9086
-        - name: sample_spa
-          description: Vue Vuetify SPA
+          port: 8506
+        - name: game_spa
+          description: Vue Phaser SPA
+          template: agile-learning-institute/stage0_template_vue_phaser
+          publish: npm
+          type: spa
+          port: 8507
+    - name: care
+      description: The Healing Game Care Provider portal.
+      data_domains:
+        controls:
+          - Plan
+          - Encounter
+          - Player
+        creates: []
+        consumes:
+          - Profile
+          - Identity
+          - Event
+      repos:
+        - name: care_api
+          description: Flask API with MongoDB
+          template: agile-learning-institute/stage0_template_flask_mongo
+          publish: pipenv
+          type: api
+          port: 8508
+        - name: care_spa
+          description: Vue Phaser SPA
           template: agile-learning-institute/stage0_template_vue_vuetify
           publish: npm
           type: spa
-          port: 9087
+          port: 8509

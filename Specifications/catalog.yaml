@@ -6,9 +6,13 @@ data_dictionaries:
     description: The IdP Identity of a person who is a user of the system.
   - name: Profile
     description: User preferences associated with one Identity.
-  - name: Control
-    description: A sample Control (CRUD) collection
-  - name: Create
-    description: A sample Create (Write Once, Read Many) collection
-  - name: Consume
-    description: A sample Consume (Read Only) collection
+  - name: Game
+    description: A sample Game collection
+  - name: Event
+    description: A tracked game event
+  - name: Player
+    description: A sample Player collection
+  - name: Plan
+    description: A encounter checklist
+  - name: Encounter
+    description: A Care Provider's encounter with a Patient(Player)

@@ -4,17 +4,17 @@
 info:
   name: Example Product
   description: Example product for Stage0 Launch (replace with your own).
-  slug: example-product
-  developer_cli: ep
-  db_name: example_db
-  base_port: 9080
+  slug: example (Short one-word name used as a prefix)
+  developer_cli: ep (Short two-character command used by engineers)
+  db_name: example_db (Database name for MongoDB) 
+  base_port: 9080 (Starting port for all services, each repo get's own port)
 
 organization:
   name: Your Organization
-  email: info@example.com
-  founded: 2024
-  slug: your-org
-  git_host: https://github.com
-  git_org: your-org
-  docker_host: ghcr.io
-  docker_org: your-org
+  email: info@example.com (Organization email address)
+  founded: 2024 (Year organization was founded)
+  slug: your-org (Short one-word name used as a prefix)
+  git_host: https://github.com (Git hosting provider, only tested with GitHub)
+  git_org: your-org (Git organization name, only tested with GitHub)
+  docker_host: ghcr.io (Docker hosting provider, only tested with GitHub Container Registry)
+  docker_org: your-org (Docker organization name, only tested with GitHub Container Registry)
