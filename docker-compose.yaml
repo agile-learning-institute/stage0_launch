@@ -1,22 +1,26 @@
-# Stage0 Launch — run once: umbrella repo, merge, publish, `make launch-all` (service repos + images).
-# Run from repo root: `make run` (sets HOST_* mounts). Export GITHUB_TOKEN first; see README.
-# Optional: mount SSH for umbrella `make validate` Git SSH check, e.g. -v ~/.ssh:/root/.ssh:ro
+# Stage0 Launch — bootstrap: umbrella repo, merge, publish, launch-all (services).
+# From repo root: `export GITHUB_TOKEN=...` then `make run`.
+# Optional: REMOVE_STAGE0_LAUNCH_CLONE=1 removes this repo’s contents after success (needs rw mount).
+# Image defaults to GHCR; with `build: .` Compose builds and tags the same name for local use.
 
 services:
   launch:
+    image: ghcr.io/agile-learning-institute/stage0_launch:latest
     build: .
-    image: stage0_launch:latest
     container_name: stage0_launch
+    entrypoint: ["/launch.sh"]
+    command: ["bootstrap"]
     environment:
       SPECIFICATIONS: /specifications
-      HOST_SPECIFICATIONS: ${HOST_SPECIFICATIONS}
       LAUNCHPAD_DIR: /launchpad
-      HOST_LAUNCHPAD: ${HOST_LAUNCHPAD}
       GITHUB_TOKEN: ${GITHUB_TOKEN:?GITHUB_TOKEN must be set. See README.md}
       GH_TOKEN: ${GITHUB_TOKEN}
+      REMOVE_STAGE0_LAUNCH_CLONE: ${REMOVE_STAGE0_LAUNCH_CLONE:-}
+      STAGE0_LAUNCH_KEEP_REPO: ${STAGE0_LAUNCH_KEEP_REPO:-}
+      STAGE0_LAUNCH_REPO_DIR: /stage0_launch_repo
     volumes:
       - ./Specifications:/specifications
       - ${HOST_LAUNCHPAD}:/launchpad
+      - .:/stage0_launch_repo:rw
       - /var/run/docker.sock:/var/run/docker.sock
-    # Container runs launch.sh then exits (stdout/stderr to host)
     restart: "no"

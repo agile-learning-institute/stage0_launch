@@ -1,27 +1,47 @@
 # Stage0 Launch
 
-Containerized Stage0 Launch tool. Creates an umbrella repo from the stage0 template, merges your specifications, runs **`make launch-all`** inside the generated umbrella (service repos, merges, Docker builds, and registry pushes), then prints where to go next. You only need Docker and a GitHub token on the host—the image carries the rest of the toolchain.
+Container image **`ghcr.io/agile-learning-institute/stage0_launch:latest`** bootstraps a new umbrella (create repo from template, merge specs, publish umbrella image, **`launch-all`** for every service in `architecture.yaml`). On the host you only need **Docker** and a **GitHub token**; the image supplies Node, Python 3.12, pipenv, Docker CLI/buildx, `gh`, etc.
+
+Entrypoint is **`/launch.sh`** with subcommands (no legacy default beyond `bootstrap` when you pass no args—same as `launch.sh bootstrap`).
+
+## Subcommands
+
+| Command | Purpose |
+|--------|---------|
+| **`bootstrap`** | First-time launch: needs **`SPECIFICATIONS`**, **`LAUNCHPAD_DIR`**. Creates `LAUNCHPAD_DIR/<slug>`, merges, copies specs, umbrella `build-package` / `publish-package`, **`launch-all`**. |
+| **`launch-all`** | From an existing umbrella clone: needs **`UMBRELLA_DIR`**, **`SERVICE_SOURCE_DIR`** (parent of umbrella). Umbrella publish + all services. |
+| **`launch-services`** | Same, but only domains in **`SERVICES`** (space-separated). |
+| **`clone-all`** | Clone every service repo next to the umbrella and run local **`build-package`** only (onboarding / fresh clones). |
+| **`delete-services`** | Destructive: GitHub repos + packages for **`SERVICES`**. Confirm by typing slug, or set **`I_CONFIRM_DELETE_SERVICES=yes`** and **`I_CONFIRM_SLUG=<slug>`**. |
+| **`delete-all`** | All services **plus** umbrella repo and umbrella container package. Confirm with **`DELETE ALL <slug>`**, or **`I_CONFIRM_DELETE_ALL=yes`** and **`I_CONFIRM_SLUG`**. |
+| **`validate`** | Image smoke-test (tooling + optional Git SSH probe). For **stage0_launch** CI/dev, not wired from the umbrella Makefile. |
+| **`help`** | Short usage. |
+
+### Bootstrap env
+
+| Variable | Meaning |
+|----------|---------|
+| `SPECIFICATIONS` | Folder with `product.yaml`, `architecture.yaml`, `catalog.yaml` |
+| `LAUNCHPAD_DIR` | Directory **outside** any `.git` repo; umbrella clones to `LAUNCHPAD_DIR/<slug>` |
+| `GITHUB_TOKEN` / `GH_TOKEN` | GitHub classic token (`repo`, `workflow`, `write:packages`; delete flows need more) |
+| `REMOVE_STAGE0_LAUNCH_CLONE` | `1` or `yes`: after success, remove **`STAGE0_LAUNCH_REPO_DIR`** if basename is `stage0_launch` |
+| `STAGE0_LAUNCH_REPO_DIR` | e.g. `/stage0_launch_repo` when bind-mounting the launch repo |
+| `STAGE0_LAUNCH_KEEP_REPO` | `1` / `yes`: never remove the launch clone |
+
+Umbrella automation always uses **`SERVICE_SOURCE_DIR`** = parent of the umbrella (sibling repos live there), and **`UMBRELLA_DIR`** = umbrella git root.
+
+---
 
 ## Prerequisites
 
-Complete these before using Stage0 Launch:
-
 1. **Conversation with the Stage0 Architect**  
-   Have a conversation with the [Stage0 Architect](https://chatgpt.com/g/g-69a8f1731e448191a023fb6740ff46fd-stage0-architect) and obtain your specification files: `product.yaml`, `architecture.yaml`, and `catalog.yaml`.
+   [Stage0 Architect](https://chatgpt.com/g/g-69a8f1731e448191a023fb6740ff46fd-stage0-architect) — obtain `product.yaml`, `architecture.yaml`, `catalog.yaml`.
 
 2. **Docker Desktop**  
-   Install and run [Docker Desktop](https://www.docker.com/products/docker-desktop/) so you can run the launch container. The container uses the **host** Docker engine (socket mount) to run merge images and build/push service images.
+   Host engine is used via **`/var/run/docker.sock`** (merge containers, image builds).
 
 3. **GitHub token**  
-   We use GitHub to publish packages and containers. Create a **GitHub classic access token** with `repo`, `workflow`, and `write:packages` privileges.  
-
-   To create it: sign in to GitHub and the click your user icon and choose → Profile → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new Classic token → check **repo**, **workflow**, **write:packages**
-
-### What’s inside the launch image
-
-So you don’t install them on your laptop for Quickstart: **git**, **gh**, **make**, **jq**, **yq**, **curl**, **openssh-client**, **Docker CLI** + **buildx** + **compose** plugin (driver is still the host), **Node.js 22** + **npm**, global **Vite**, **Python 3.12**, **pipenv** (via **pipx**), **build-essential** (node-gyp / native deps), and a default **git** `user.name` / `user.email` for commits. Export **`GITHUB_TOKEN`** on the host; the entrypoint also sets **`GH_TOKEN`** for `gh`.
-
-Umbrella **`make validate`** includes a **Git SSH** clone/push probe; the launch flow does **not** run that. If you run `validate` inside the container, mount your keys, e.g. add under `volumes` in `docker-compose.yaml`: `- ~/.ssh:/root/.ssh:ro` (and ensure `github.com` is in `known_hosts` or use `ssh-keyscan`).
+   Classic PAT: **repo**, **workflow**, **write:packages** (and **`delete_repo` / `delete:packages`** if you use delete commands).
 
 ---
 
@@ -30,55 +50,60 @@ Umbrella **`make validate`** includes a **Git SSH** clone/push probe; the launch
 ```bash
 git clone https://github.com/agile-learning-institute/stage0_launch.git
 cd stage0_launch
-
-# Copy your yaml into the Specifications folder (replace the example files with product.yaml, architecture.yaml, catalog.yaml from your Stage0 Architect conversation)
+# Place your YAML under ./Specifications
 
 export GITHUB_TOKEN=ghp_your_token_here
 make run
 ```
 
-The container runs once, prints progress, and exits. It has already run **`make launch-all`** in the umbrella (creating service repos, merging specs, building and pushing images as defined in your architecture). Follow the final output box: open the umbrella on disk, install the **developer CLI** from that repo (see umbrella `DeveloperEdition` / root `Makefile` help), then run **`<developer_cli> up all`** to bring stacks up locally.
+`make run` runs **`docker compose up --build`** so the local `Dockerfile` can populate `ghcr.io/.../stage0_launch:latest` until the registry image exists. Compose mounts **`./Specifications`**, **`..`** as launchpad, and **`./`** at **`/stage0_launch_repo`** for optional cleanup.
 
-If you prefer to run launch steps on the host instead of inside this image, use the same tools listed under [Developer prerequisites](#developer-prerequisites) and run `make validate` / `make launch-all` from `DeveloperEdition/stage0` yourself.
+After bootstrap, open the umbrella path printed in the summary, install the developer CLI (`make install` / `CONTRIBUTING.md`), then **`<developer_cli> up all`** (your CLI name comes from merged `product.yaml`).
+
+### Optional: remove the `stage0_launch` clone after bootstrap
+
+```bash
+export REMOVE_STAGE0_LAUNCH_CLONE=1
+# STAGE0_LAUNCH_REPO_DIR=/stage0_launch_repo is set by compose; do not run from inside that directory.
+make run
+```
+
+While developing this repo, set **`STAGE0_LAUNCH_KEEP_REPO=1`** or omit **`REMOVE_STAGE0_LAUNCH_CLONE`**.
+
+---
+
+## Umbrella repo (after merge)
+
+From the **umbrella root**, use Makefile wrappers (same **`stage0_launch`** image, pinned in **`DeveloperEdition/launch-docker-compose.yaml`**):
+
+- `make stage0-automation-help`
+- `make launch-all`, `make launch-services SERVICES="..."`, `make clone-all`
+- `make delete-services` / `make delete-all` with confirmation (or `I_CONFIRM_*` env vars for automation)
 
 ---
 
 ## Contributing
 
-### launch.sh
+### Tooling in the image
 
-`launch.sh` is the container entrypoint (or runs locally via `make dev`). It requires `SPECIFICATIONS` (folder with your YAML) and `LAUNCHPAD_DIR` (must exist and sit **outside** any `.git` tree; the umbrella is cloned to `LAUNCHPAD_DIR/<slug>`). With Compose, those map to `/specifications` and `/launchpad`; `make run` sets `HOST_SPECIFICATIONS` to `./Specifications` and `HOST_LAUNCHPAD` to the repo parent (`../`) so those mounts resolve on the host. It uses `GITHUB_TOKEN` for HTTPS (`gh`, `git`, publishing) and sets `GH_TOKEN` for the GitHub CLI. The spec folder must contain `product.yaml`, `architecture.yaml`, and `catalog.yaml`; `product.yaml` supplies `organization.git_org`, `info.slug`, and `info.base_port`. In the **container image**, the tools needed through `make launch-all` are pre-installed (see [What’s inside the launch image](#whats-inside-the-launch-image)); for `make dev` on the host, install them yourself. Flow: `gh repo create` from `agile-learning-institute/stage0_template_umbrella`, short wait, clone, `make merge` with your spec path, copy every `*.yaml` / `*.yml` from the spec folder into the umbrella `Specifications/`, `make build-package` and `make publish-package`, one `git` commit and push if anything changed, then `make launch-all` in `DeveloperEdition/stage0`. The umbrella keeps launch/delete automation there (including `validate`).
+See earlier sections: **git**, **gh**, **make**, **jq**, **yq**, **curl**, **openssh-client**, **Docker CLI** + **buildx**, **Node 22**, **Vite**, **Python 3.12**, **pipenv**.
 
-### Developer prerequisites
-
-To run `make dev` on the **host** without the container, install the same toolchain the image provides (not an exhaustive lockstep list—match what your specs’ services need):
-
-| Tool | Purpose | Install |
-|------|---------|--------|
-| **git** | Clone and push | [git-scm.com](https://git-scm.com/downloads) — often pre-installed |
-| **make** | Run targets | macOS: Xcode Command Line Tools (`xcode-select --install`). Linux: `apt install build-essential` |
-| **gh** | GitHub CLI (create repo, auth) | [cli.github.com](https://cli.github.com/) — macOS: `brew install gh`; Linux: see official install |
-| **docker** | Run merge container | [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker CLI and daemon) |
-| **yq** | Read YAML (e.g. product.yaml) | [mikefarah/yq](https://github.com/mikefarah/yq) — macOS: `brew install yq`; Linux: download from releases |
-| **jq** | JSON (optional, used in image) | [jqlang.github.io/jq](https://jqlang.github.io/jq/download/) — macOS: `brew install jq` |
-| **node / npm / vite** | SPA merges and `npm run build-package` | e.g. Node 22 LTS; `npm install -g vite` if you want a global `vite` for `make validate` |
-| **Python 3.12 / pipenv** | API merges and `pipenv run build-package` | Match umbrella `verify` / `DeveloperEdition/stage0` `validate` expectations |
-| **docker buildx** | Image builds in launch-services | Docker Desktop usually includes buildx |
-| **ssh** (optional) | Umbrella `make validate` Git SSH probe | Only if you run `validate` |
-| **GITHUB_TOKEN** | Auth for gh and git | Export in your shell; same token as in Prerequisites above |
-
-From the repo root, set `GITHUB_TOKEN` and run:
+### Host `make dev`
 
 ```bash
-export GITHUB_TOKEN=ghp_your_token_here
-make dev SPECIFICATIONS=<path> 
+export GITHUB_TOKEN=ghp_...
+make dev SPECIFICATIONS=/path/to/specs   # runs launch.sh bootstrap with a temp launchpad
+make validate                             # launch.sh validate
 ```
 
-### Developer make commands
+### Make targets
 
 | Command | Description |
 |--------|-------------|
-| `make help` | List available commands |
-| `make run` | Run the launch container (`./Specifications` and parent directory `../` as launchpad via `docker compose up`) |
-| `make dev SPECIFICATIONS=<path>` | Run `launch.sh` in dev mode (launchpad is `/tmp/stage0_launchpad_<pid>`) |
-| `make container` | Build the launch container image (`stage0_launch:latest` by default) |
+| `make help` | List commands |
+| `make run` | `docker compose up --build` (bootstrap) |
+| `make dev SPECIFICATIONS=...` | Bootstrap on host with temp launchpad |
+| `make validate` | Run `validate` subcommand on host |
+| `make container` | Build `stage0_launch:latest` only |
+
+Git SSH in **`validate`** needs **`~/.ssh`** mounted if you run it in a container (not required for **`bootstrap`**).

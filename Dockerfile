@@ -50,14 +50,14 @@ RUN curl -sSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux
 # pipenv (umbrella validate + pipenv run build-package for APIs)
 RUN pipx install pipenv
 
-# Vite on PATH (DeveloperEdition/stage0 `make validate`)
+# Vite on PATH (`launch.sh validate`)
 RUN npm install -g vite
 
 RUN git config --global user.name "Stage0 Launch" && \
     git config --global user.email "stage0-launch@localhost"
 
 COPY launch.sh /launch.sh
-RUN chmod +x /launch.sh
+COPY umbrella_automation.sh /umbrella_automation.sh
+RUN chmod +x /launch.sh /umbrella_automation.sh
 
-# Mount: ./Specifications -> /specifications, launchpad host dir -> /launchpad, docker.sock. Set GITHUB_TOKEN.
 ENTRYPOINT ["/launch.sh"]

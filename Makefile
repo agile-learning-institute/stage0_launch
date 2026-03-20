@@ -1,12 +1,13 @@
-.PHONY: help container dev run
+.PHONY: help container dev run validate
 
 CONTAINER_IMAGE ?= stage0_launch:latest
 
 help:
 	@echo "Available commands:"
-	@echo "  make run              	         - Run container (using ./Specifications and ../ as the launchpad)"
-	@echo "  make dev SPECIFICATIONS=<path>  - Run launch.sh (using /tmp/stage0_launchpad_<pid> as the launchpad)"
-	@echo "  make container                  - Build container for deployment"
+	@echo "  make run              	          - docker compose: bootstrap (./Specifications, ../ launchpad, GITHUB_TOKEN)"
+	@echo "  make dev SPECIFICATIONS=<path>  - Host: launch.sh bootstrap (tmp launchpad)"
+	@echo "  make validate                     - Host: launch.sh validate (tooling check; optional GITHUB_TOKEN for gh)"
+	@echo "  make container                   - Build image (tags stage0_launch:latest for compose build)"
 
 container:
 	@echo "Building container image: $(CONTAINER_IMAGE)"
@@ -20,8 +21,11 @@ dev:
 	fi
 	@mkdir -p /tmp/stage0_launchpad_$$$$; \
 	echo "Running launch script in Dev mode (SPECIFICATIONS=$(SPECIFICATIONS) LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$$$)..."; \
-	SPECIFICATIONS="$(SPECIFICATIONS)" LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$$$ ./launch.sh
+	SPECIFICATIONS="$(SPECIFICATIONS)" LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$$$ ./launch.sh bootstrap
+
+validate:
+	@./launch.sh validate
 
 run:
-	@echo "Running launch container..."
-	@HOST_SPECIFICATIONS="$(CURDIR)/Specifications" HOST_LAUNCHPAD="$(CURDIR)/.." docker compose up
+	@echo "Running launch container (compose build ensures local image if GHCR is unavailable)..."
+	@HOST_LAUNCHPAD="$(CURDIR)/.." docker compose up --build
