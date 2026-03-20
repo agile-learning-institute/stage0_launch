@@ -18,14 +18,10 @@ dev:
 		echo "Error: SPECIFICATIONS must be set. Example: make dev SPECIFICATIONS=/path/to/specifications"; \
 		exit 1; \
 	fi
-	@mkdir -p /tmp/stage0_launchpad_$$; \
-	echo "Running launch script in Dev mode (SPECIFICATIONS=$(SPECIFICATIONS) LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$)..."; \
-	SPECIFICATIONS="$(SPECIFICATIONS)" LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$ ./launch.sh
+	@mkdir -p /tmp/stage0_launchpad_$$$$; \
+	echo "Running launch script in Dev mode (SPECIFICATIONS=$(SPECIFICATIONS) LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$$$)..."; \
+	SPECIFICATIONS="$(SPECIFICATIONS)" LAUNCHPAD_DIR=/tmp/stage0_launchpad_$$$$ ./launch.sh
 
 run:
 	@echo "Running launch container..."
 	@HOST_SPECIFICATIONS="$(CURDIR)/Specifications" HOST_LAUNCHPAD="$(CURDIR)/.." docker compose up
-
-push:
-	@echo "Pushing launch container to the registry..."
-	@docker push $(CONTAINER_IMAGE)

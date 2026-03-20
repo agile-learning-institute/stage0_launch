@@ -6,6 +6,9 @@
 
 set -e
 
+# gh prefers GH_TOKEN; many users only set GITHUB_TOKEN
+export GH_TOKEN="${GITHUB_TOKEN:-}"
+
 # --- Configuration from env ---
 SPECIFICATIONS="${SPECIFICATIONS:?Error: SPECIFICATIONS must be set (path to specifications folder)}"
 LAUNCHPAD_DIR="${LAUNCHPAD_DIR:?Error: LAUNCHPAD_DIR must be set (path outside any .git repo)}"

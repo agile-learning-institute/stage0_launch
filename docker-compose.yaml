@@ -1,5 +1,6 @@
-# Stage0 Launch - run once: creates umbrella repo, merges specs, writes docker-compose to Specifications/<slug>_local
-# Run from repo root: make run (sets HOST_SPECIFICATIONS). Export GITHUB_TOKEN first; see README.
+# Stage0 Launch — run once: umbrella repo, merge, publish, `make launch-all` (service repos + images).
+# Run from repo root: `make run` (sets HOST_* mounts). Export GITHUB_TOKEN first; see README.
+# Optional: mount SSH for umbrella `make validate` Git SSH check, e.g. -v ~/.ssh:/root/.ssh:ro
 
 services:
   launch:
@@ -12,6 +13,7 @@ services:
       LAUNCHPAD_DIR: /launchpad
       HOST_LAUNCHPAD: ${HOST_LAUNCHPAD}
       GITHUB_TOKEN: ${GITHUB_TOKEN:?GITHUB_TOKEN must be set. See README.md}
+      GH_TOKEN: ${GITHUB_TOKEN}
     volumes:
       - ./Specifications:/specifications
       - ${HOST_LAUNCHPAD}:/launchpad
