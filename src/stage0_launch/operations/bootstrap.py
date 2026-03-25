@@ -10,6 +10,7 @@ from typing import TextIO
 from stage0_launch.launchpad_stub import write_stub
 from stage0_launch.operations.umbrella_ops import UmbrellaContext, cmd_launch_all
 from stage0_launch.procutil import run_streaming, sleep_s
+from stage0_launch.runbook_merge import run_runbook_merge
 
 
 def _git_inside(d: Path) -> bool:
@@ -72,7 +73,13 @@ def run_bootstrap(specs_dir: Path, launchpad: Path, log: TextIO) -> None:
 
     log.write("=== 3. Merge specifications ===\n")
     log.flush()
-    run_streaming(["make", "merge", str(specs_dir)], cwd=umbrella_dir, log=log)
+    run_runbook_merge(
+        log,
+        repo_dir=umbrella_dir,
+        specifications_dir=specs_dir,
+        launchpad=launchpad,
+        service_name=None,
+    )
 
     log.write("=== 4. Copy specifications into umbrella ===\n")
     log.flush()
@@ -82,8 +89,12 @@ def run_bootstrap(specs_dir: Path, launchpad: Path, log: TextIO) -> None:
         for f in specs_dir.glob(pattern):
             shutil.copy2(f, dest_specs / f.name)
 
+    ctx = UmbrellaContext.load(umbrella_dir, service_source)
+
     log.write("=== 5. Build and publish umbrella package ===\n")
     log.flush()
+    ctx.git_https_setup(log)
+    ctx.docker_login(log)
     run_streaming(["make", "build-package"], cwd=umbrella_dir, log=log)
     run_streaming(["make", "publish-package"], cwd=umbrella_dir, log=log)
 
@@ -133,7 +144,6 @@ def run_bootstrap(specs_dir: Path, launchpad: Path, log: TextIO) -> None:
 
     log.write("=== 7. Launch all services (umbrella + repos) ===\n")
     log.flush()
-    ctx = UmbrellaContext.load(umbrella_dir, service_source)
     cmd_launch_all(ctx, log)
 
     log.write("\n")

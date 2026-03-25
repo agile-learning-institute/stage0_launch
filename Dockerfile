@@ -49,8 +49,9 @@ COPY Pipfile ./
 RUN pip3 install --no-cache-dir --break-system-packages \
     "flask>=3.0" "gunicorn>=22.0" "pyyaml>=6.0" "jsonschema>=4.0"
 
+COPY gunicorn.conf.py ./
 COPY src ./src
 
 EXPOSE 8080
 
-CMD ["gunicorn", "-b", "0.0.0.0:8080", "-w", "1", "--threads", "8", "stage0_launch.wsgi:application"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "stage0_launch.wsgi:application"]

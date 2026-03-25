@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TextIO
 
 from stage0_launch.procutil import run_streaming, sleep_s
+from stage0_launch.runbook_merge import run_runbook_merge
 from stage0_launch.yqutil import yq_eval
 
 
@@ -275,14 +276,13 @@ def _launch_one_repo(
         line_prefix=line_prefix,
     )
     repo_path = source / repo_full
-    env = os.environ.copy()
-    env["SERVICE_NAME"] = svc
     banner(f"  Merging {repo_full}")
-    run_streaming(
-        ["make", "merge", str(ctx.specs_dir)],
-        cwd=repo_path,
-        env=env,
-        log=log,
+    run_runbook_merge(
+        log,
+        repo_dir=repo_path,
+        specifications_dir=ctx.specs_dir,
+        launchpad=ctx.service_source_dir,
+        service_name=svc,
         line_prefix=line_prefix,
     )
     if publish:

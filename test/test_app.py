@@ -20,6 +20,56 @@ def test_index_ok(client):
     assert r.status_code == 200
 
 
+def test_thanks_page_ok(client):
+    r = client.get("/thanks")
+    assert r.status_code == 200
+    assert b"Thanks for launching" in r.data
+    assert b"btn-exit" in r.data
+
+
+def test_exit_page_ok(client):
+    r = client.get("/exit")
+    assert r.status_code == 200
+    assert b"stopping" in r.data.lower()
+
+
+def test_api_shutdown_ok(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "stage0_launch.app.CONTAINER_LAUNCHPAD",
+        tmp_path / "__no_shutdown__",
+    )
+    r = client.post("/api/shutdown")
+    assert r.status_code == 200
+    assert r.get_json()["ok"] is True
+
+
+def test_bootstrap_finish_400_without_stub(client, tmp_path):
+    r = client.post("/api/bootstrap/finish")
+    assert r.status_code == 400
+    assert "stub" in (r.get_json() or {}).get("error", "").lower()
+
+
+def test_bootstrap_finish_removes_bootstrap_dir(monkeypatch, tmp_path):
+    monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "stage0_launch.app.CONTAINER_LAUNCHPAD",
+        tmp_path / "__not_container_mount__",
+    )
+    write_three_specs(tmp_path / "p9" / "Specifications", slug="p9")
+    write_stub(tmp_path, "p9")
+    boot = tmp_path / ".stage0-bootstrap"
+    (boot / "specs").mkdir(parents=True)
+    (boot / "specs" / "product.yaml").write_text("x", encoding="utf-8")
+
+    app = create_app()
+    app.config["TESTING"] = True
+    c = app.test_client()
+    r = c.post("/api/bootstrap/finish")
+    assert r.status_code == 200
+    assert r.get_json()["ok"] is True
+    assert not boot.exists()
+
+
 def test_api_status_bootstrap_no_stub(client):
     r = client.get("/api/status")
     assert r.status_code == 200

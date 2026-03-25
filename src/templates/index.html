@@ -24,6 +24,7 @@
     }
     button.primary { background: #1a5f4a; color: #fff; border-color: #1a5f4a; }
     button.danger { background: #8b1538; color: #fff; border-color: #8b1538; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
     ul.services { list-style: none; padding: 0; margin: 0.5rem 0 1rem; }
     ul.services li { padding: 0.25rem 0; }
     .toolbar { margin: 1rem 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
@@ -74,6 +75,7 @@
       <button type="button" class="primary" id="btn-launch">Launch</button>
       <button type="button" id="btn-clone">Clone</button>
       <button type="button" class="danger" id="btn-delete">Delete</button>
+      <button type="button" id="btn-exit-ops" title="Stop Stage0 Launch and shut down this container">Exit</button>
     </div>
   </section>
 
@@ -98,7 +100,31 @@
     const serviceList = $('service-list');
     const logModal = $('log-modal');
     const jobLog = $('job-log');
+    const modalCloseBtn = $('modal-close');
     let eventSource = null;
+    let ellipsisTimer = null;
+    /** After a successful bootstrap job, Close runs cleanup and goes to /thanks. */
+    let bootstrapFinishedOk = false;
+
+    function setCloseEnabled(on) {
+      modalCloseBtn.disabled = !on;
+    }
+
+    function startEllipsis(base) {
+      stopEllipsis();
+      let n = 0;
+      ellipsisTimer = setInterval(() => {
+        $('log-title').textContent = base + '.'.repeat(n % 4);
+        n += 1;
+      }, 450);
+    }
+
+    function stopEllipsis() {
+      if (ellipsisTimer) {
+        clearInterval(ellipsisTimer);
+        ellipsisTimer = null;
+      }
+    }
 
     async function refreshStatus() {
       const r = await fetch('/api/status');
@@ -151,16 +177,52 @@
     }
 
     function closeLogModal() {
+      stopEllipsis();
+      setCloseEnabled(true);
+      bootstrapFinishedOk = false;
       logModal.classList.remove('open');
       logModal.setAttribute('aria-hidden', 'true');
       if (eventSource) { eventSource.close(); eventSource = null; }
     }
 
-    $('modal-close').onclick = closeLogModal;
-    logModal.onclick = (e) => { if (e.target === logModal) closeLogModal(); };
+    modalCloseBtn.onclick = async () => {
+      if (bootstrapFinishedOk) {
+        bootstrapFinishedOk = false;
+        try {
+          const r = await fetch('/api/bootstrap/finish', { method: 'POST' });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            alert(j.error || 'Could not finalize bootstrap');
+            closeLogModal();
+            return;
+          }
+          stopEllipsis();
+          if (eventSource) { eventSource.close(); eventSource = null; }
+          logModal.classList.remove('open');
+          logModal.setAttribute('aria-hidden', 'true');
+          window.location.href = '/thanks';
+          return;
+        } catch (e) {
+          alert('Could not finalize: ' + e);
+          closeLogModal();
+          return;
+        }
+      }
+      closeLogModal();
+    };
 
-    function followJob(jobId, title) {
+    logModal.onclick = (e) => {
+      if (e.target !== logModal) return;
+      if (bootstrapFinishedOk) return;
+      if (!modalCloseBtn.disabled) closeLogModal();
+    };
+
+    function followJob(jobId, title, opts) {
+      opts = opts || {};
+      const isBootstrap = opts.bootstrap === true;
       openLogModal(title, true);
+      setCloseEnabled(false);
+      startEllipsis(title);
       if (eventSource) eventSource.close();
       eventSource = new EventSource('/api/jobs/' + encodeURIComponent(jobId) + '/stream');
       eventSource.onmessage = (ev) => {
@@ -170,8 +232,17 @@
           if (d.done) {
             eventSource.close();
             eventSource = null;
-            if (d.error) jobLog.textContent += '\n[finished with error]\n';
-            else jobLog.textContent += '\n[finished]\n';
+            stopEllipsis();
+            setCloseEnabled(true);
+            if (d.error) {
+              $('log-title').textContent = title + ' — error';
+              jobLog.textContent += '\n[finished with error]\n';
+              bootstrapFinishedOk = false;
+            } else {
+              $('log-title').textContent = title + ' — complete';
+              jobLog.textContent += '\n[finished]\n';
+              bootstrapFinishedOk = isBootstrap;
+            }
             jobLog.scrollTop = jobLog.scrollHeight;
             refreshStatus();
           }
@@ -181,6 +252,9 @@
       eventSource.onerror = () => {
         if (eventSource) eventSource.close();
         eventSource = null;
+        stopEllipsis();
+        setCloseEnabled(true);
+        bootstrapFinishedOk = false;
       };
     }
 
@@ -209,20 +283,28 @@
 
     $('btn-bootstrap').onclick = async () => {
       openLogModal('Bootstrap', true);
+      setCloseEnabled(false);
+      startEllipsis('Bootstrap');
       jobLog.textContent = '';
       try {
         const py = $('py').value.trim();
         const ay = $('ay').value.trim();
         const cy = $('cy').value.trim();
         if (!py || !ay || !cy) {
+          stopEllipsis();
+          $('log-title').textContent = 'Bootstrap';
           jobLog.textContent = 'Paste all three YAML files (product, architecture, catalog).\n';
+          setCloseEnabled(true);
           return;
         }
         jobLog.textContent = 'Validating…\n';
         const vr = await runValidate();
         if (!vr.ok) {
+          stopEllipsis();
+          $('log-title').textContent = 'Bootstrap';
           jobLog.textContent += 'Validation failed:\n';
           (vr.errors || []).forEach((line) => { jobLog.textContent += line + '\n'; });
+          setCloseEnabled(true);
           return;
         }
         jobLog.textContent += 'Saving…\n';
@@ -236,26 +318,37 @@
           }),
         });
         if (!pr.ok) {
+          stopEllipsis();
+          $('log-title').textContent = 'Bootstrap';
           const j = await pr.json().catch(() => ({}));
           jobLog.textContent += (j.error || (await pr.text())) + '\n';
           if (j.errors) j.errors.forEach((line) => { jobLog.textContent += line + '\n'; });
+          setCloseEnabled(true);
           return;
         }
         jobLog.textContent += 'Starting bootstrap…\n';
         const jr = await fetch('/api/jobs/bootstrap', { method: 'POST' });
         const j = await jr.json();
         if (!jr.ok) {
+          stopEllipsis();
+          $('log-title').textContent = 'Bootstrap';
           jobLog.textContent += (j.error || 'Bootstrap failed') + '\n';
+          setCloseEnabled(true);
           return;
         }
-        followJob(j.job_id, 'Bootstrap');
+        followJob(j.job_id, 'Bootstrap', { bootstrap: true });
       } catch (e) {
+        stopEllipsis();
+        $('log-title').textContent = 'Bootstrap';
         jobLog.textContent += 'Error: ' + e + '\n';
+        setCloseEnabled(true);
       }
     };
 
     async function postJob(url, payload, title) {
       openLogModal(title, true);
+      setCloseEnabled(false);
+      startEllipsis(title);
       jobLog.textContent = 'Preparing…\n';
       const jr = await fetch(url, {
         method: 'POST',
@@ -264,10 +357,13 @@
       });
       const j = await jr.json();
       if (!jr.ok) {
+        stopEllipsis();
+        $('log-title').textContent = title;
         jobLog.textContent += (j.error || 'Request failed') + '\n';
+        setCloseEnabled(true);
         return;
       }
-      followJob(j.job_id, title);
+      followJob(j.job_id, title, { bootstrap: false });
     }
 
     $('btn-launch').onclick = () => {
@@ -293,6 +389,16 @@
         i_confirm_delete_services: 'yes',
         i_confirm_slug: slug,
       }, 'Delete services');
+    };
+
+    $('btn-exit-ops').onclick = async () => {
+      if (!confirm(
+        'Stop Stage0 Launch and shut down this container? Any job still running will be interrupted.'
+      )) return;
+      try {
+        await fetch('/api/shutdown', { method: 'POST' });
+      } catch (e) { /* container may die before response */ }
+      window.location.href = '/exit';
     };
 
     refreshStatus();

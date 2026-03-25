@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thanks — Stage0 Launch</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; line-height: 1.5; color: #1a1a1a; }
+    body { max-width: 40rem; margin: 4rem auto; padding: 0 1.5rem; text-align: center; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.75rem; }
+    p { color: #444; margin: 0.5rem 0; }
+    .muted { font-size: 0.95rem; color: #666; margin-top: 1.5rem; }
+    button {
+      margin-top: 1.25rem;
+      padding: 0.5rem 1.1rem;
+      font-size: 1rem;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid #1a5f4a;
+      background: #1a5f4a;
+      color: #fff;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <h1>Thanks for launching with Stage0</h1>
+  <p>Your launchpad is ready. Temporary bootstrap files have been removed.</p>
+  <p><button type="button" id="btn-exit">Exit</button></p>
+  <p id="exit-msg" class="muted" style="display:none;">Shutting down…</p>
+  <script>
+    document.getElementById('btn-exit').onclick = async function () {
+      var b = document.getElementById('btn-exit');
+      b.disabled = true;
+      document.getElementById('exit-msg').style.display = 'block';
+      try {
+        await fetch('/api/shutdown', { method: 'POST' });
+      } catch (e) { /* container may stop before response */ }
+    };
+  </script>
+</body>
+</html>

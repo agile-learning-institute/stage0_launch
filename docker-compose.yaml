@@ -11,6 +11,8 @@ services:
       GH_TOKEN: ${GITHUB_TOKEN}
       GH_USERNAME: ${GH_USERNAME:-}
       GITHUB_USERNAME: ${GITHUB_USERNAME:-}
+      # Lets nested merge resolve the real bind source via ``docker inspect`` (not fragile findmnt paths on Desktop).
+      STAGE0_LAUNCH_CONTAINER_NAME: stage0_launch
     volumes:
       - ${LAUNCHPAD_HOST:-..}:/Launchpad
       - /var/run/docker.sock:/var/run/docker.sock

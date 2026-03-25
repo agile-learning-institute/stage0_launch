@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import signal
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
 from flask import Flask, Response, jsonify, render_template, request, stream_with_context
 
-from stage0_launch.config import launchpad_dir
+from stage0_launch.config import CONTAINER_LAUNCHPAD, launchpad_dir
 from stage0_launch.discovery import DiscoveryResult, discover, launchpad_specs_complete
-from stage0_launch.launchpad_stub import stub_path
+from stage0_launch.launchpad_stub import read_stub_umbrella, stub_path, write_stub
 from stage0_launch.jobs.manager import JobManager
 from stage0_launch.operations.bootstrap import run_bootstrap
 from stage0_launch.operations.umbrella_ops import (
@@ -63,6 +67,20 @@ def _service_domains(lp: Path, slug: str) -> list[str]:
     return []
 
 
+def _schedule_container_shutdown(*, delay_seconds: float = 1.5) -> None:
+    """SIGTERM PID 1 after a delay when running in the standard launch container (``/Launchpad`` mount)."""
+
+    def _run() -> None:
+        time.sleep(delay_seconds)
+        try:
+            if CONTAINER_LAUNCHPAD.is_dir():
+                os.kill(1, signal.SIGTERM)
+        except OSError:
+            pass
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def _status_payload() -> dict[str, Any]:
     lp = launchpad_dir()
     disc = discover(lp)
@@ -90,6 +108,60 @@ def create_app() -> Flask:
     @app.get("/")
     def index():
         return render_template("index.html")
+
+    @app.get("/thanks")
+    def thanks():
+        return render_template("thanks.html")
+
+    @app.get("/exit")
+    def exit_page():
+        """Shown after Exit from interactive mode (post ``/api/shutdown``)."""
+        return render_template("exit.html")
+
+    @app.post("/api/bootstrap/finish")
+    def api_bootstrap_finish():
+        """
+        After a successful bootstrap, user dismisses the job log: remove
+        ``.stage0-bootstrap``, ensure the launchpad stub exists, then optionally
+        signal PID 1 to stop the container (typical Docker layout).
+        """
+        lp = launchpad_dir()
+        boot = lp / ".stage0-bootstrap"
+        stub = stub_path(lp)
+
+        disc = discover(lp)
+        if disc.ok and disc.slug:
+            if not stub.is_file():
+                try:
+                    write_stub(lp, disc.slug)
+                except ValueError:
+                    return jsonify({"error": "Could not write launchpad stub"}), 500
+        elif not stub.is_file():
+            return jsonify(
+                {
+                    "error": "Launchpad stub missing; finish is only valid after "
+                    "bootstrap completed successfully.",
+                }
+            ), 400
+
+        if boot.is_dir():
+            try:
+                shutil.rmtree(boot)
+            except OSError as e:
+                return jsonify({"error": f"Could not remove bootstrap folder: {e}"}), 500
+
+        umbrella = read_stub_umbrella(lp)
+        if umbrella and not (lp / umbrella).is_dir():
+            return jsonify({"error": "Stub points at missing umbrella folder"}), 500
+
+        _schedule_container_shutdown(delay_seconds=2.0)
+        return jsonify({"ok": True})
+
+    @app.post("/api/shutdown")
+    def api_shutdown():
+        """Thank-you / Exit: stop the launch container when running under Docker."""
+        _schedule_container_shutdown(delay_seconds=0.75)
+        return jsonify({"ok": True})
 
     @app.get("/api/status")
     def api_status():
