@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stage0 Launch</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; line-height: 1.45; color: #1a1a1a; }
+    body { max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.35rem; margin-top: 0; }
+    .muted { color: #555; font-size: 0.9rem; }
+    .err { color: #b00020; background: #ffe8ec; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; }
+    .warn {
+      color: #5c4a00; background: #fff8e1; border: 1px solid #e6d08c;
+      padding: 0.75rem 1rem; border-radius: 6px; margin: 1rem 0; font-size: 0.95rem;
+    }
+    .warn ul { margin: 0.5rem 0 0 1.1rem; padding: 0; }
+    .warn code { font-size: 0.85em; }
+    textarea { width: 100%; min-height: 7rem; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+    label { display: block; font-weight: 600; margin-top: 0.75rem; }
+    button {
+      margin: 0.35rem 0.35rem 0.35rem 0; padding: 0.45rem 0.9rem;
+      cursor: pointer; border-radius: 6px; border: 1px solid #333; background: #fff;
+    }
+    button.primary { background: #1a5f4a; color: #fff; border-color: #1a5f4a; }
+    button.danger { background: #8b1538; color: #fff; border-color: #8b1538; }
+    ul.services { list-style: none; padding: 0; margin: 0.5rem 0 1rem; }
+    ul.services li { padding: 0.25rem 0; }
+    .toolbar { margin: 1rem 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 100; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 10px; max-width: min(56rem, 100%); width: 100%;
+      max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .modal header { padding: 0.75rem 1rem; border-bottom: 1px solid #ddd; font-weight: 700; }
+    .modal .log {
+      flex: 1; overflow: auto; margin: 0; padding: 0.75rem 1rem;
+      font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap;
+      background: #0d1117; color: #c9d1d9; min-height: 12rem;
+    }
+    .modal footer { padding: 0.75rem 1rem; border-top: 1px solid #ddd; text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>Stage0 Launch</h1>
+
+  <section id="bootstrap-panel" style="display:none;">
+    <div id="launchpad-warn" class="warn" style="display:none;">
+      <strong>Launchpad is not empty.</strong>
+      Bootstrap will add the umbrella and service repos here. Existing entries:
+      <ul id="launchpad-warn-list"></ul>
+      <p class="muted" style="margin:0.5rem 0 0 0; font-size:0.88rem;">Path: <code id="launchpad-warn-path"></code></p>
+    </div>
+    <label for="py">product.yaml</label>
+    <textarea id="py"></textarea>
+    <label for="ay">architecture.yaml</label>
+    <textarea id="ay"></textarea>
+    <label for="cy">catalog.yaml</label>
+    <textarea id="cy"></textarea>
+    <p style="margin-top:1rem;"><button type="button" class="primary" id="btn-bootstrap">Launch</button></p>
+  </section>
+
+  <section id="ops-panel" style="display:none;">
+    <div id="disc-err-ops" class="err" style="display:none;"></div>
+    <ul class="services" id="service-list"></ul>
+    <div class="toolbar">
+      <label><input type="checkbox" id="check-all" /> All</label>
+    </div>
+    <div class="toolbar">
+      <button type="button" class="primary" id="btn-launch">Launch</button>
+      <button type="button" id="btn-clone">Clone</button>
+      <button type="button" class="danger" id="btn-delete">Delete</button>
+    </div>
+  </section>
+
+  <div class="modal-overlay" id="log-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="log-title">
+      <header id="log-title">Job log</header>
+      <pre class="log" id="job-log"></pre>
+      <footer>
+        <button type="button" id="modal-close">Close</button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const discErrOps = $('disc-err-ops');
+    const bootstrapPanel = $('bootstrap-panel');
+    const launchpadWarn = $('launchpad-warn');
+    const launchpadWarnList = $('launchpad-warn-list');
+    const launchpadWarnPath = $('launchpad-warn-path');
+    const opsPanel = $('ops-panel');
+    const serviceList = $('service-list');
+    const logModal = $('log-modal');
+    const jobLog = $('job-log');
+    let eventSource = null;
+
+    async function refreshStatus() {
+      const r = await fetch('/api/status');
+      const s = await r.json();
+      if (s.bootstrap_mode) {
+        discErrOps.style.display = 'none';
+        discErrOps.textContent = '';
+        bootstrapPanel.style.display = 'block';
+        opsPanel.style.display = 'none';
+        const w = s.launchpad_dir_warning;
+        if (w && w.items && w.items.length) {
+          launchpadWarn.style.display = 'block';
+          launchpadWarnPath.textContent = w.path || '';
+          launchpadWarnList.innerHTML = '';
+          w.items.forEach((name) => {
+            const li = document.createElement('li');
+            li.textContent = name;
+            launchpadWarnList.appendChild(li);
+          });
+        } else {
+          launchpadWarn.style.display = 'none';
+          launchpadWarnList.innerHTML = '';
+        }
+      } else {
+        launchpadWarn.style.display = 'none';
+        discErrOps.style.display = s.discovery_error ? 'block' : 'none';
+        discErrOps.textContent = s.discovery_error || '';
+        bootstrapPanel.style.display = 'none';
+        opsPanel.style.display = 'block';
+        serviceList.innerHTML = '';
+        (s.services || []).forEach((name) => {
+          const li = document.createElement('li');
+          li.innerHTML = '<label><input type="checkbox" class="svc-cb" value="' +
+            name.replace(/"/g, '&quot;') + '" /> ' + name + '</label>';
+          serviceList.appendChild(li);
+        });
+        $('check-all').checked = false;
+      }
+    }
+
+    function selectedServices() {
+      return Array.from(document.querySelectorAll('.svc-cb:checked')).map((el) => el.value);
+    }
+
+    function openLogModal(title, clear) {
+      $('log-title').textContent = title;
+      if (clear !== false) jobLog.textContent = '';
+      logModal.classList.add('open');
+      logModal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeLogModal() {
+      logModal.classList.remove('open');
+      logModal.setAttribute('aria-hidden', 'true');
+      if (eventSource) { eventSource.close(); eventSource = null; }
+    }
+
+    $('modal-close').onclick = closeLogModal;
+    logModal.onclick = (e) => { if (e.target === logModal) closeLogModal(); };
+
+    function followJob(jobId, title) {
+      openLogModal(title, true);
+      if (eventSource) eventSource.close();
+      eventSource = new EventSource('/api/jobs/' + encodeURIComponent(jobId) + '/stream');
+      eventSource.onmessage = (ev) => {
+        try {
+          const d = JSON.parse(ev.data);
+          if (d.chunk) jobLog.textContent += d.chunk;
+          if (d.done) {
+            eventSource.close();
+            eventSource = null;
+            if (d.error) jobLog.textContent += '\n[finished with error]\n';
+            else jobLog.textContent += '\n[finished]\n';
+            jobLog.scrollTop = jobLog.scrollHeight;
+            refreshStatus();
+          }
+        } catch (_) {}
+        jobLog.scrollTop = jobLog.scrollHeight;
+      };
+      eventSource.onerror = () => {
+        if (eventSource) eventSource.close();
+        eventSource = null;
+      };
+    }
+
+    $('check-all').onchange = () => {
+      const on = $('check-all').checked;
+      document.querySelectorAll('.svc-cb').forEach((el) => { el.checked = on; });
+    };
+
+    async function runValidate() {
+      const body = {
+        product_yaml: $('py').value,
+        architecture_yaml: $('ay').value,
+        catalog_yaml: $('cy').value,
+      };
+      const r = await fetch('/api/specs/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (r.status === 400) {
+        const t = await r.text();
+        return { ok: false, errors: [t || 'Invalid request'] };
+      }
+      return r.json();
+    }
+
+    $('btn-bootstrap').onclick = async () => {
+      openLogModal('Bootstrap', true);
+      jobLog.textContent = '';
+      try {
+        const py = $('py').value.trim();
+        const ay = $('ay').value.trim();
+        const cy = $('cy').value.trim();
+        if (!py || !ay || !cy) {
+          jobLog.textContent = 'Paste all three YAML files (product, architecture, catalog).\n';
+          return;
+        }
+        jobLog.textContent = 'Validating…\n';
+        const vr = await runValidate();
+        if (!vr.ok) {
+          jobLog.textContent += 'Validation failed:\n';
+          (vr.errors || []).forEach((line) => { jobLog.textContent += line + '\n'; });
+          return;
+        }
+        jobLog.textContent += 'Saving…\n';
+        const pr = await fetch('/api/specs/paste', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_yaml: $('py').value,
+            architecture_yaml: $('ay').value,
+            catalog_yaml: $('cy').value,
+          }),
+        });
+        if (!pr.ok) {
+          const j = await pr.json().catch(() => ({}));
+          jobLog.textContent += (j.error || (await pr.text())) + '\n';
+          if (j.errors) j.errors.forEach((line) => { jobLog.textContent += line + '\n'; });
+          return;
+        }
+        jobLog.textContent += 'Starting bootstrap…\n';
+        const jr = await fetch('/api/jobs/bootstrap', { method: 'POST' });
+        const j = await jr.json();
+        if (!jr.ok) {
+          jobLog.textContent += (j.error || 'Bootstrap failed') + '\n';
+          return;
+        }
+        followJob(j.job_id, 'Bootstrap');
+      } catch (e) {
+        jobLog.textContent += 'Error: ' + e + '\n';
+      }
+    };
+
+    async function postJob(url, payload, title) {
+      openLogModal(title, true);
+      jobLog.textContent = 'Preparing…\n';
+      const jr = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const j = await jr.json();
+      if (!jr.ok) {
+        jobLog.textContent += (j.error || 'Request failed') + '\n';
+        return;
+      }
+      followJob(j.job_id, title);
+    }
+
+    $('btn-launch').onclick = () => {
+      const sv = selectedServices();
+      if (!sv.length) { alert('Select at least one service.'); return; }
+      postJob('/api/jobs/launch-services', { services: sv }, 'Launch services');
+    };
+
+    $('btn-clone').onclick = () => {
+      const sv = selectedServices();
+      if (!sv.length) { alert('Select at least one service.'); return; }
+      postJob('/api/jobs/clone-services', { services: sv }, 'Clone services');
+    };
+
+    $('btn-delete').onclick = () => {
+      const sv = selectedServices();
+      if (!sv.length) { alert('Select at least one service.'); return; }
+      const slug = prompt('Type the product slug to confirm delete:');
+      if (!slug) return;
+      if (!confirm('Delete selected service repos and packages? This cannot be undone.')) return;
+      postJob('/api/jobs/delete-services', {
+        services: sv,
+        i_confirm_delete_services: 'yes',
+        i_confirm_slug: slug,
+      }, 'Delete services');
+    };
+
+    refreshStatus();
+  </script>
+</body>
+</html>

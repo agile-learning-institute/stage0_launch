@@ -1,26 +1,17 @@
-# Stage0 Launch — bootstrap: umbrella repo, merge, publish, launch-all (services).
-# From repo root: `export GITHUB_TOKEN=...` then `make run`.
-# Optional: REMOVE_STAGE0_LAUNCH_CLONE=1 removes this repo’s contents after success (needs rw mount).
-# Image defaults to GHCR; with `build: .` Compose builds and tags the same name for local use.
-
+# Stage0 Launch — Flask UI (detached: use `pipenv run compose-up` or `docker compose up --build -d`).
 services:
   launch:
     image: ghcr.io/agile-learning-institute/stage0_launch:latest
     build: .
     container_name: stage0_launch
-    entrypoint: ["/launch.sh"]
-    command: ["bootstrap"]
+    ports:
+      - "${LAUNCH_HOST_PORT:-8080}:8080"
     environment:
-      SPECIFICATIONS: /specifications
-      LAUNCHPAD_DIR: /launchpad
-      GITHUB_TOKEN: ${GITHUB_TOKEN:?GITHUB_TOKEN must be set. See README.md}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:?GITHUB_TOKEN must be set}
       GH_TOKEN: ${GITHUB_TOKEN}
-      REMOVE_STAGE0_LAUNCH_CLONE: ${REMOVE_STAGE0_LAUNCH_CLONE:-}
-      STAGE0_LAUNCH_KEEP_REPO: ${STAGE0_LAUNCH_KEEP_REPO:-}
-      STAGE0_LAUNCH_REPO_DIR: /stage0_launch_repo
+      GH_USERNAME: ${GH_USERNAME:-}
+      GITHUB_USERNAME: ${GITHUB_USERNAME:-}
     volumes:
-      - ./Specifications:/specifications
-      - ${HOST_LAUNCHPAD}:/launchpad
-      - .:/stage0_launch_repo:rw
+      - ${LAUNCHPAD_HOST:-..}:/Launchpad
       - /var/run/docker.sock:/var/run/docker.sock
-    restart: "no"
+    restart: unless-stopped

@@ -1,109 +1,66 @@
 # Stage0 Launch
 
-Container image **`ghcr.io/agile-learning-institute/stage0_launch:latest`** bootstraps a new umbrella (create repo from template, merge specs, publish umbrella image, **`launch-all`** for every service in `architecture.yaml`). On the host you only need **Docker** and a **GitHub token**; the image supplies Node, Python 3.12, pipenv, Docker CLI/buildx, `gh`, etc.
+Flask web UI and API to **bootstrap** a new umbrella (from pasted specifications) and run **Launch** / **Clone** / **Delete** on **selected** service domains.
 
-Entrypoint is **`/launch.sh`** with subcommands (no legacy default beyond `bootstrap` when you pass no args—same as `launch.sh bootstrap`).
-
-## Subcommands
-
-| Command | Purpose |
-|--------|---------|
-| **`bootstrap`** | First-time launch: needs **`SPECIFICATIONS`**, **`LAUNCHPAD_DIR`**. Creates `LAUNCHPAD_DIR/<slug>`, merges, copies specs, umbrella `build-package` / `publish-package`, **`launch-all`**. |
-| **`launch-all`** | From an existing umbrella clone: needs **`UMBRELLA_DIR`**, **`SERVICE_SOURCE_DIR`** (parent of umbrella). Umbrella publish + all services. |
-| **`launch-services`** | Same, but only domains in **`SERVICES`** (space-separated). |
-| **`clone-all`** | Clone every service repo next to the umbrella and run local **`build-package`** only (onboarding / fresh clones). |
-| **`delete-services`** | Destructive: GitHub repos + packages for **`SERVICES`**. Confirm by typing slug, or set **`I_CONFIRM_DELETE_SERVICES=yes`** and **`I_CONFIRM_SLUG=<slug>`**. |
-| **`delete-all`** | All services **plus** umbrella repo and umbrella container package. Confirm with **`DELETE ALL <slug>`**, or **`I_CONFIRM_DELETE_ALL=yes`** and **`I_CONFIRM_SLUG`**. |
-| **`validate`** | Image smoke-test (tooling + optional Git SSH probe). For **stage0_launch** CI/dev, not wired from the umbrella Makefile. |
-| **`help`** | Short usage. |
-
-### Bootstrap env
-
-| Variable | Meaning |
-|----------|---------|
-| `SPECIFICATIONS` | Folder with `product.yaml`, `architecture.yaml`, `catalog.yaml` |
-| `LAUNCHPAD_DIR` | Directory **outside** any `.git` repo; umbrella clones to `LAUNCHPAD_DIR/<slug>` |
-| `GITHUB_TOKEN` / `GH_TOKEN` | GitHub classic token (`repo`, `workflow`, `write:packages`; delete flows need more) |
-| `REMOVE_STAGE0_LAUNCH_CLONE` | `1` or `yes`: after success, remove **`STAGE0_LAUNCH_REPO_DIR`** if basename is `stage0_launch` |
-| `STAGE0_LAUNCH_REPO_DIR` | e.g. `/stage0_launch_repo` when bind-mounting the launch repo |
-| `STAGE0_LAUNCH_KEEP_REPO` | `1` / `yes`: never remove the launch clone |
-
-Umbrella automation always uses **`SERVICE_SOURCE_DIR`** = parent of the umbrella (sibling repos live there), and **`UMBRELLA_DIR`** = umbrella git root.
-
----
-
-## Prerequisites
-
-1. **Conversation with the Stage0 Architect**  
-   [Stage0 Architect](https://chatgpt.com/g/g-69a8f1731e448191a023fb6740ff46fd-stage0-architect) — obtain `product.yaml`, `architecture.yaml`, `catalog.yaml`.
-
-2. **Docker Desktop**  
-   Host engine is used via **`/var/run/docker.sock`** (merge containers, image builds).
-
-3. **GitHub token**  
-   Classic PAT: **repo**, **workflow**, **write:packages** (and **`delete_repo` / `delete:packages`** if you use delete commands).
-
----
-
-## Quickstart
-
-```bash
-git clone https://github.com/agile-learning-institute/stage0_launch.git
-cd stage0_launch
-# Place your YAML under ./Specifications
-
-export GITHUB_TOKEN=ghp_your_token_here
-make run
-```
-
-`make run` runs **`docker compose up --build`** so the local `Dockerfile` can populate `ghcr.io/.../stage0_launch:latest` until the registry image exists. Compose mounts **`./Specifications`**, **`..`** as launchpad, and **`./`** at **`/stage0_launch_repo`** for optional cleanup.
-
-After bootstrap, open the umbrella path printed in the summary, install the developer CLI (`make install` / `CONTRIBUTING.md`), then **`<developer_cli> up all`** (your CLI name comes from merged `product.yaml`).
-
-### Optional: remove the `stage0_launch` clone after bootstrap
-
-```bash
-export REMOVE_STAGE0_LAUNCH_CLONE=1
-# STAGE0_LAUNCH_REPO_DIR=/stage0_launch_repo is set by compose; do not run from inside that directory.
-make run
-```
-
-While developing this repo, set **`STAGE0_LAUNCH_KEEP_REPO=1`** or omit **`REMOVE_STAGE0_LAUNCH_CLONE`**.
-
----
-
-## Umbrella repo (after merge)
-
-From the **umbrella root**, use Makefile wrappers (same **`stage0_launch`** image, pinned in **`DeveloperEdition/launch-docker-compose.yaml`**):
-
-- `make stage0-automation-help`
-- `make launch-all`, `make launch-services SERVICES="..."`, `make clone-all`
-- `make delete-services` / `make delete-all` with confirmation (or `I_CONFIRM_*` env vars for automation)
-
----
-
-## Contributing
-
-### Tooling in the image
-
-See earlier sections: **git**, **gh**, **make**, **jq**, **yq**, **curl**, **openssh-client**, **Docker CLI** + **buildx**, **Node 22**, **Vite**, **Python 3.12**, **pipenv**.
-
-### Host `make dev`
+## Quickstart (Docker Compose)
 
 ```bash
 export GITHUB_TOKEN=ghp_...
-make dev SPECIFICATIONS=/path/to/specs   # runs launch.sh bootstrap with a temp launchpad
-make validate                             # launch.sh validate
+pipenv install --dev   # optional; or use pip install -r / local venv
+pipenv run compose-up    # runs: docker compose down && docker compose up --build -d
 ```
 
-### Make targets
+Open **http://localhost:8080** (or `LAUNCH_HOST_PORT`).
 
-| Command | Description |
-|--------|-------------|
-| `make help` | List commands |
-| `make run` | `docker compose up --build` (bootstrap) |
-| `make dev SPECIFICATIONS=...` | Bootstrap on host with temp launchpad |
-| `make validate` | Run `validate` subcommand on host |
-| `make container` | Build `stage0_launch:latest` only |
+The container uses **`/Launchpad`** as the launchpad root (created in the image; compose mounts your host folder there). Set **`LAUNCHPAD_HOST`** to the host directory to mount (default **`..`**). You do **not** need `LAUNCHPAD_DIR` inside the container.
 
-Git SSH in **`validate`** needs **`~/.ssh`** mounted if you run it in a container (not required for **`bootstrap`**).
+Use an **empty** host folder for a clean bootstrap; the UI warns when the launchpad already has entries.
+
+## Launchpad layout
+
+- **`.stage0-launch.yaml`** (at the root of the launchpad) is written when bootstrap **finishes successfully**. It records which child folder is the umbrella, for example:
+
+  ```yaml
+  umbrella: my-product-slug
+  ```
+
+- **Bootstrap mode** (paste UI): this file is **missing**.
+- **Interactive mode** (service checkboxes): stub exists and points at `<launchpad>/<umbrella>/Specifications` with the three YAML files; `info.slug` must match the umbrella folder name.
+- If the stub exists but is invalid or the tree is broken, the UI stays in **operations** layout and shows a **discovery error** (not bootstrap).
+
+Pasted specs are still saved under **`.stage0-bootstrap/specs/`** until bootstrap runs.
+
+## Web UI
+
+- **Bootstrap**: title, optional non-empty warning, three text areas, **Launch** (validates against the bundled JSON Schema, saves, then starts the bootstrap job).
+- **Interactive**: checkbox list of domains, **All**, **Launch** / **Clone** / **Delete**. Job log opens in a modal (SSE).
+
+## API (selected)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/status` | Launchpad path, `bootstrap_mode`, `interactive_mode`, `discovery_*`, `services`, `launchpad_dir_warning` |
+| POST | `/api/specs/validate` | JSON `product_yaml`, `architecture_yaml`, `catalog_yaml` → `{ ok, errors[] }` |
+| POST | `/api/specs/paste` | Validates then saves YAML under `.stage0-bootstrap/specs/` |
+| POST | `/api/jobs/bootstrap` | Full bootstrap (requires pasted specs); writes `.stage0-launch.yaml` when the job completes successfully |
+| POST | `/api/jobs/launch-services` | JSON `services`: list of domain names or space-separated string |
+| POST | `/api/jobs/clone-services` | Same body |
+| POST | `/api/jobs/delete-services` | `services`, `i_confirm_delete_services`: `"yes"`, `i_confirm_slug` |
+| GET | `/api/jobs/<id>` | Job status + full log |
+| GET | `/api/jobs/<id>/stream` | SSE log |
+
+## Environment
+
+| Variable | Meaning |
+|----------|---------|
+| `LAUNCHPAD_DIR` | Optional override for the launchpad path (tests, nonstandard layouts). If unset: use **`/Launchpad`** when that directory exists, else the process current directory. |
+| `LAUNCHPAD_HOST` | **Compose only**: host path mounted at **`/Launchpad`** in the container (default **`..`**). |
+| `GITHUB_TOKEN` | Required for GitHub / GHCR |
+
+## Testing
+
+Use **`pipenv run compose-up`** (see Quickstart) so the app runs in the same image as production, with Docker socket and launchpad mounts. For fast feedback without the full stack, run **`pipenv run test`**.
+
+## Validate
+
+`pipenv run validate` runs a minimal host check stub; extend `validate_host.py` for full CI checks if needed.

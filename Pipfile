@@ -1,0 +1,25 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "*"
+gunicorn = "*"
+pyyaml = "*"
+jsonschema = "*"
+
+[dev-packages]
+pytest = "*"
+black = "*"
+
+[scripts]
+test = "sh -c 'PYTHONPATH=src pytest test -v'"
+lint = "black --check src test"
+format = "black src test"
+compose-up = "sh -c 'docker compose down && docker compose up --build -d'"
+container = "docker build -f Dockerfile -t stage0_launch:latest ."
+validate = "sh -c 'PYTHONPATH=src python -m stage0_launch.validate_host'"
+
+[requires]
+python_version = "3.12"
