@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator, TextIO
 
-from stage0_launch.procutil import run_streaming, sleep_s
+from stage0_launch.procutil import run_streaming, wait_for_git_remote_refs
 from stage0_launch.runbook_merge import run_runbook_merge
 from stage0_launch.yqutil import yq_eval
 
@@ -313,14 +313,10 @@ def _launch_one_repo(
         log=log,
         line_prefix=line_prefix,
     )
-    sleep_s(5, log, line_prefix=line_prefix)
+    clone_url = f"https://x-access-token:{token}@github.com/{repo}.git"
+    wait_for_git_remote_refs(clone_url, log, line_prefix=line_prefix)
     run_streaming(
-        [
-            "git",
-            "clone",
-            f"https://x-access-token:{token}@github.com/{repo}.git",
-            repo_full,
-        ],
+        ["git", "clone", clone_url, repo_full],
         cwd=source,
         log=log,
         line_prefix=line_prefix,
