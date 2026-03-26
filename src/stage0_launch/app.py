@@ -13,7 +13,13 @@ from flask import Flask, Response, jsonify, render_template, request, stream_wit
 
 from stage0_launch.config import CONTAINER_LAUNCHPAD, launchpad_dir
 from stage0_launch.discovery import DiscoveryResult, discover, launchpad_specs_complete
-from stage0_launch.launchpad_stub import read_stub_umbrella, stub_path, write_stub
+from stage0_launch.launchpad_stub import (
+    read_stub_umbrella,
+    stub_path,
+    valid_umbrella_folder_name,
+    write_stub,
+)
+from stage0_launch.yqutil import yq_eval
 from stage0_launch.jobs.manager import JobManager
 from stage0_launch.operations.bootstrap import run_bootstrap
 from stage0_launch.operations.umbrella_ops import (
@@ -121,28 +127,36 @@ def create_app() -> Flask:
     @app.post("/api/bootstrap/finish")
     def api_bootstrap_finish():
         """
-        After a successful bootstrap, user dismisses the job log: remove
-        ``.stage0-bootstrap``, ensure the launchpad stub exists, then optionally
-        signal PID 1 to stop the container (typical Docker layout).
+        After a bootstrap job (success or failure), user dismisses the log: read
+        ``info.slug`` from ``.stage0-bootstrap/specs/product.yaml`` (if present),
+        remove ``.stage0-bootstrap``, then ensure ``.stage0-launch.yaml`` exists
+        (``umbrella: <slug>``) from discovery or from that slug. Optionally signal
+        PID 1 to stop the container.
         """
         lp = launchpad_dir()
         boot = lp / ".stage0-bootstrap"
         stub = stub_path(lp)
+        disc_before = discover(lp)
 
-        disc = discover(lp)
-        if disc.ok and disc.slug:
-            if not stub.is_file():
-                try:
-                    write_stub(lp, disc.slug)
-                except ValueError:
-                    return jsonify({"error": "Could not write launchpad stub"}), 500
-        elif not stub.is_file():
+        if not boot.is_dir() and not (disc_before.ok and disc_before.slug):
             return jsonify(
                 {
-                    "error": "Launchpad stub missing; finish is only valid after "
-                    "bootstrap completed successfully.",
+                    "error": "Nothing to finish (no .stage0-bootstrap and no "
+                    "interactive launchpad stub).",
                 }
             ), 400
+
+        slug_from_bootstrap_specs: str | None = None
+        prod_in_boot = boot / "specs" / "product.yaml"
+        if prod_in_boot.is_file():
+            try:
+                raw = yq_eval(".info.slug", prod_in_boot)
+                if raw and raw != "null":
+                    cand = raw.strip()
+                    if valid_umbrella_folder_name(cand):
+                        slug_from_bootstrap_specs = cand
+            except Exception:
+                pass
 
         if boot.is_dir():
             try:
@@ -150,9 +164,23 @@ def create_app() -> Flask:
             except OSError as e:
                 return jsonify({"error": f"Could not remove bootstrap folder: {e}"}), 500
 
-        umbrella = read_stub_umbrella(lp)
-        if umbrella and not (lp / umbrella).is_dir():
-            return jsonify({"error": "Stub points at missing umbrella folder"}), 500
+        disc = discover(lp)
+
+        if disc.ok and disc.slug:
+            if not stub.is_file():
+                try:
+                    write_stub(lp, disc.slug)
+                except ValueError:
+                    return jsonify({"error": "Could not write launchpad stub"}), 500
+            umbrella = read_stub_umbrella(lp)
+            if umbrella and not (lp / umbrella).is_dir():
+                return jsonify({"error": "Stub points at missing umbrella folder"}), 500
+        elif slug_from_bootstrap_specs:
+            if not stub.is_file():
+                try:
+                    write_stub(lp, slug_from_bootstrap_specs)
+                except ValueError:
+                    return jsonify({"error": "Could not write launchpad stub"}), 500
 
         _schedule_container_shutdown(delay_seconds=2.0)
         return jsonify({"ok": True})

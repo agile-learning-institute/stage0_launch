@@ -3,7 +3,7 @@ import json
 import pytest
 
 from stage0_launch.app import create_app
-from stage0_launch.launchpad_stub import write_stub
+from stage0_launch.launchpad_stub import read_stub_umbrella, stub_path, write_stub
 from test.specs_minimal import MIN_ARCH, MIN_CATALOG, MIN_PRODUCT, write_three_specs
 
 
@@ -24,6 +24,7 @@ def test_thanks_page_ok(client):
     r = client.get("/thanks")
     assert r.status_code == 200
     assert b"Thanks for launching" in r.data
+    assert b".stage0-bootstrap" in r.data
     assert b"btn-exit" in r.data
 
 
@@ -46,7 +47,50 @@ def test_api_shutdown_ok(client, monkeypatch, tmp_path):
 def test_bootstrap_finish_400_without_stub(client, tmp_path):
     r = client.post("/api/bootstrap/finish")
     assert r.status_code == 400
-    assert "stub" in (r.get_json() or {}).get("error", "").lower()
+    err = (r.get_json() or {}).get("error", "").lower()
+    assert "nothing to finish" in err or "no .stage0-bootstrap" in err
+
+
+def test_bootstrap_finish_removes_bootstrap_only_after_failed_bootstrap(
+    monkeypatch, tmp_path
+):
+    """Simulate failed job: specs dir exists, no stub yet — finish cleans up and exits ok."""
+    monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "stage0_launch.app.CONTAINER_LAUNCHPAD",
+        tmp_path / "__not_container_mount__",
+    )
+    boot = tmp_path / ".stage0-bootstrap"
+    (boot / "specs").mkdir(parents=True)
+    (boot / "specs" / "product.yaml").write_text("x", encoding="utf-8")
+
+    app = create_app()
+    app.config["TESTING"] = True
+    c = app.test_client()
+    r = c.post("/api/bootstrap/finish")
+    assert r.status_code == 200
+    assert r.get_json()["ok"] is True
+    assert not boot.exists()
+    assert not stub_path(tmp_path).is_file()
+
+
+def test_bootstrap_finish_writes_stub_from_pasted_product_slug(monkeypatch, tmp_path):
+    """After cleanup, ``.stage0-launch.yaml`` gets ``umbrella`` from pasted product.yaml."""
+    monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "stage0_launch.app.CONTAINER_LAUNCHPAD",
+        tmp_path / "__not_container_mount__",
+    )
+    write_three_specs(tmp_path / ".stage0-bootstrap" / "specs", slug="mentorhub")
+    assert not stub_path(tmp_path).is_file()
+
+    app = create_app()
+    app.config["TESTING"] = True
+    c = app.test_client()
+    r = c.post("/api/bootstrap/finish")
+    assert r.status_code == 200
+    assert not (tmp_path / ".stage0-bootstrap").exists()
+    assert read_stub_umbrella(tmp_path) == "mentorhub"
 
 
 def test_bootstrap_finish_removes_bootstrap_dir(monkeypatch, tmp_path):

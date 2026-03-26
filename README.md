@@ -2,19 +2,59 @@
 
 Flask web UI and API to **bootstrap** a new umbrella (from pasted specifications) and run **Launch** / **Clone** / **Delete** on **selected** service domains.
 
-## Quickstart (Docker Compose)
+## Quick start
+
+From the directory you want as the **launchpad** (it is mounted at **`/Launchpad`** in the container):
 
 ```bash
-export GITHUB_TOKEN=ghp_...
-pipenv install --dev   # optional; or use pip install -r / local venv
+export GITHUB_TOKEN='<your-personal-access-token>'
+export GITHUB_USERNAME='<your-github-login>'
+
+docker run -d --rm --name stage0_launch \
+  -p 8080:8080 \
+  -v "$(pwd):/Launchpad" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e GITHUB_TOKEN \
+  -e GITHUB_USERNAME \
+  -e STAGE0_LAUNCH_CONTAINER_NAME=stage0_launch \
+  ghcr.io/agile-learning-institute/stage0_launch:latest
+```
+
+Open **http://localhost:8080**.
+
+Use an **empty** host folder for a clean bootstrap; the UI warns when the launchpad already has entries.
+
+Set **`STAGE0_LAUNCH_CONTAINER_NAME`** to the same value as **`docker run --name`** so nested Docker can resolve host bind paths (the app uses `docker inspect` for that name).
+
+### GitHub token and username
+
+Create a **personal access token** with the scopes your workflow needs (repo, `write:packages` / `read:packages` for GHCR, etc.): [Creating a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+Use these two names everywhere for Stage0 Launch:
+
+| Variable | Value |
+|----------|--------|
+| **`GITHUB_TOKEN`** | The PAT secret (`ghp_…`, `github_pat_…`, …). Same idea as GitHub Actions’ built-in `GITHUB_TOKEN`, but yours is a user or fine-grained PAT from account settings. |
+| **`GITHUB_USERNAME`** | Your **GitHub login** (`https://github.com/<this>`), not display name or email. GHCR `docker login` uses this as the registry user and the PAT as the password. Use the account the token belongs to (or the bot user for a bot token). |
+
+**`GH_TOKEN` / `GH_USERNAME`:** the GitHub CLI uses the **`GH_*`** names. The container **entrypoint** copies **`GITHUB_*` → `GH_*`** (and the other way if you only pass **`GH_*`**), so you do **not** need duplicate **`-e`** flags—set **`GITHUB_TOKEN`** and **`GITHUB_USERNAME`** on the host as above.
+
+## Developer quick start (Docker Compose)
+
+Use this when **developing this repo** or when you prefer Compose over a plain **`docker run`**.
+
+```bash
+export GITHUB_TOKEN='<your-personal-access-token>'
+export GITHUB_USERNAME='<your-github-login>'
+pipenv install --dev   # optional; or use pip install -r / a local venv
 pipenv run compose-up    # runs: docker compose down && docker compose up --build -d
 ```
 
-Open **http://localhost:8080** (or `LAUNCH_HOST_PORT`).
+Open **http://localhost:8080** (or **`LAUNCH_HOST_PORT`**).
 
-The container uses **`/Launchpad`** as the launchpad root (created in the image; compose mounts your host folder there). Set **`LAUNCHPAD_HOST`** to the host directory to mount (default **`..`**). You do **not** need `LAUNCHPAD_DIR` inside the container.
+The container uses **`/Launchpad`** as the launchpad root (the image creates it; Compose mounts your host folder there). Set **`LAUNCHPAD_HOST`** to the host directory to mount (default **`..`** relative to the compose file). You do **not** need **`LAUNCHPAD_DIR`** inside the container.
 
-Use an **empty** host folder for a clean bootstrap; the UI warns when the launchpad already has entries.
+**`docker-compose.yaml`** maps host credentials into the container the same way: host **`GITHUB_TOKEN`** or **`GH_TOKEN`**, and **`GITHUB_USERNAME`** or **`GH_USERNAME`**. The image entrypoint then syncs **`GITHUB_*`** and **`GH_*`** inside the container.
 
 ## Launchpad layout
 
@@ -55,11 +95,16 @@ Pasted specs are still saved under **`.stage0-bootstrap/specs/`** until bootstra
 |----------|---------|
 | `LAUNCHPAD_DIR` | Optional override for the launchpad path (tests, nonstandard layouts). If unset: use **`/Launchpad`** when that directory exists, else the process current directory. |
 | `LAUNCHPAD_HOST` | **Compose only**: host path mounted at **`/Launchpad`** in the container (default **`..`**). |
-| `GITHUB_TOKEN` | Required for GitHub / GHCR |
+| `GITHUB_TOKEN` | **Primary.** PAT for `git`, API, and GHCR. |
+| `GH_TOKEN` | Legacy name read by **`gh`**. In the **container image**, the entrypoint sets it from **`GITHUB_TOKEN`** when unset (and the reverse). |
+| `NODE_AUTH_TOKEN` | Optional. **Launch** maps **`GITHUB_TOKEN`** / **`GH_TOKEN`** into npm (via **`NODE_AUTH_TOKEN`** and **`NPM_CONFIG_USERCONFIG`**) for **`publish: npm`** on repos such as **`spa_utils`** (optional **GitHub Packages** publish). Default **SPA** templates install **`spa_utils`** from **git** in Docker/CI, not from **`npm.pkg.github.com`**, so consumer CI does not depend on per-package **Manage Actions access**. |
+| `GITHUB_USERNAME` | **Primary.** GitHub login for `docker login ghcr.io` when publishing images. |
+| `GH_USERNAME` | Legacy alias; in the **container image**, the entrypoint mirrors **`GITHUB_USERNAME`** when unset. On the host, Compose can still map **`GH_USERNAME`** → **`GITHUB_USERNAME`**. |
+| `STAGE0_LAUNCH_CONTAINER_NAME` | Should match the Docker **`--name`** of this container so `docker inspect` can resolve launchpad bind mounts for nested `docker run`. |
 
 ## Testing
 
-Use **`pipenv run compose-up`** (see Quickstart) so the app runs in the same image as production, with Docker socket and launchpad mounts. For fast feedback without the full stack, run **`pipenv run test`**.
+Use **`pipenv run compose-up`** (see **Developer quick start**) so the app runs in the same image as production, with Docker socket and launchpad mounts. For fast feedback without the full stack, run **`pipenv run test`**.
 
 ## Validate
 

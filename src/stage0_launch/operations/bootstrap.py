@@ -8,8 +8,12 @@ from pathlib import Path
 from typing import TextIO
 
 from stage0_launch.launchpad_stub import write_stub
-from stage0_launch.operations.umbrella_ops import UmbrellaContext, cmd_launch_all
-from stage0_launch.procutil import run_streaming, sleep_s
+from stage0_launch.operations.umbrella_ops import (
+    UmbrellaContext,
+    cmd_launch_all,
+    github_token_from_env,
+)
+from stage0_launch.procutil import run_streaming, wait_for_git_remote_refs
 from stage0_launch.runbook_merge import run_runbook_merge
 
 
@@ -26,9 +30,9 @@ def _git_inside(d: Path) -> bool:
 def run_bootstrap(specs_dir: Path, launchpad: Path, log: TextIO) -> None:
     from stage0_launch.yqutil import yq_eval
 
-    token = os.environ.get("GITHUB_TOKEN", "")
+    token = github_token_from_env()
     if not token:
-        raise RuntimeError("GITHUB_TOKEN required")
+        raise RuntimeError("GITHUB_TOKEN or GH_TOKEN required")
     if not specs_dir.is_dir() or not (specs_dir / "product.yaml").is_file():
         raise RuntimeError(f"Invalid specifications directory: {specs_dir}")
     if not launchpad.is_dir():
@@ -64,11 +68,11 @@ def run_bootstrap(specs_dir: Path, launchpad: Path, log: TextIO) -> None:
         cwd=launchpad,
         log=log,
     )
-    sleep_s(5, log)
 
     log.write("=== 2. Cloning umbrella to launchpad ===\n")
     log.flush()
     clone_url = f"https://x-access-token:{token}@github.com/{org}/{slug}.git"
+    wait_for_git_remote_refs(clone_url, log)
     run_streaming(["git", "clone", clone_url, slug], cwd=launchpad, log=log)
 
     log.write("=== 3. Merge specifications ===\n")
