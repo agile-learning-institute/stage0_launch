@@ -103,8 +103,10 @@
     const modalCloseBtn = $('modal-close');
     let eventSource = null;
     let ellipsisTimer = null;
-    /** After a successful bootstrap job, Close runs cleanup and goes to /thanks. */
-    let bootstrapFinishedOk = false;
+    /** After a bootstrap job finishes (success or error), Close runs cleanup and goes to /thanks. */
+    let bootstrapAwaitingFinish = false;
+    /** Modal title while the bootstrap job runs (ellipsis cycles through extra dots). */
+    const LAUNCH_MODAL_TITLE = 'Launching';
 
     function setCloseEnabled(on) {
       modalCloseBtn.disabled = !on;
@@ -114,7 +116,7 @@
       stopEllipsis();
       let n = 0;
       ellipsisTimer = setInterval(() => {
-        $('log-title').textContent = base + '.'.repeat(n % 4);
+        $('log-title').textContent = base + '.'.repeat(n % 5);
         n += 1;
       }, 450);
     }
@@ -179,15 +181,15 @@
     function closeLogModal() {
       stopEllipsis();
       setCloseEnabled(true);
-      bootstrapFinishedOk = false;
+      bootstrapAwaitingFinish = false;
       logModal.classList.remove('open');
       logModal.setAttribute('aria-hidden', 'true');
       if (eventSource) { eventSource.close(); eventSource = null; }
     }
 
     modalCloseBtn.onclick = async () => {
-      if (bootstrapFinishedOk) {
-        bootstrapFinishedOk = false;
+      if (bootstrapAwaitingFinish) {
+        bootstrapAwaitingFinish = false;
         try {
           const r = await fetch('/api/bootstrap/finish', { method: 'POST' });
           const j = await r.json().catch(() => ({}));
@@ -213,7 +215,7 @@
 
     logModal.onclick = (e) => {
       if (e.target !== logModal) return;
-      if (bootstrapFinishedOk) return;
+      if (bootstrapAwaitingFinish) return;
       if (!modalCloseBtn.disabled) closeLogModal();
     };
 
@@ -237,12 +239,11 @@
             if (d.error) {
               $('log-title').textContent = title + ' — error';
               jobLog.textContent += '\n[finished with error]\n';
-              bootstrapFinishedOk = false;
             } else {
               $('log-title').textContent = title + ' — complete';
               jobLog.textContent += '\n[finished]\n';
-              bootstrapFinishedOk = isBootstrap;
             }
+            bootstrapAwaitingFinish = isBootstrap;
             jobLog.scrollTop = jobLog.scrollHeight;
             refreshStatus();
           }
@@ -254,7 +255,7 @@
         eventSource = null;
         stopEllipsis();
         setCloseEnabled(true);
-        bootstrapFinishedOk = false;
+        bootstrapAwaitingFinish = false;
       };
     }
 
@@ -282,9 +283,9 @@
     }
 
     $('btn-bootstrap').onclick = async () => {
-      openLogModal('Bootstrap', true);
+      openLogModal(LAUNCH_MODAL_TITLE, true);
       setCloseEnabled(false);
-      startEllipsis('Bootstrap');
+      startEllipsis(LAUNCH_MODAL_TITLE);
       jobLog.textContent = '';
       try {
         const py = $('py').value.trim();
@@ -292,7 +293,7 @@
         const cy = $('cy').value.trim();
         if (!py || !ay || !cy) {
           stopEllipsis();
-          $('log-title').textContent = 'Bootstrap';
+          $('log-title').textContent = LAUNCH_MODAL_TITLE;
           jobLog.textContent = 'Paste all three YAML files (product, architecture, catalog).\n';
           setCloseEnabled(true);
           return;
@@ -301,7 +302,7 @@
         const vr = await runValidate();
         if (!vr.ok) {
           stopEllipsis();
-          $('log-title').textContent = 'Bootstrap';
+          $('log-title').textContent = LAUNCH_MODAL_TITLE;
           jobLog.textContent += 'Validation failed:\n';
           (vr.errors || []).forEach((line) => { jobLog.textContent += line + '\n'; });
           setCloseEnabled(true);
@@ -319,7 +320,7 @@
         });
         if (!pr.ok) {
           stopEllipsis();
-          $('log-title').textContent = 'Bootstrap';
+          $('log-title').textContent = LAUNCH_MODAL_TITLE;
           const j = await pr.json().catch(() => ({}));
           jobLog.textContent += (j.error || (await pr.text())) + '\n';
           if (j.errors) j.errors.forEach((line) => { jobLog.textContent += line + '\n'; });
@@ -331,15 +332,15 @@
         const j = await jr.json();
         if (!jr.ok) {
           stopEllipsis();
-          $('log-title').textContent = 'Bootstrap';
+          $('log-title').textContent = LAUNCH_MODAL_TITLE;
           jobLog.textContent += (j.error || 'Bootstrap failed') + '\n';
           setCloseEnabled(true);
           return;
         }
-        followJob(j.job_id, 'Bootstrap', { bootstrap: true });
+        followJob(j.job_id, LAUNCH_MODAL_TITLE, { bootstrap: true });
       } catch (e) {
         stopEllipsis();
-        $('log-title').textContent = 'Bootstrap';
+        $('log-title').textContent = LAUNCH_MODAL_TITLE;
         jobLog.textContent += 'Error: ' + e + '\n';
         setCloseEnabled(true);
       }

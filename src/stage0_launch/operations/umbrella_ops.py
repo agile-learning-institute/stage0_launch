@@ -4,10 +4,12 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Generator, TextIO
 
 from stage0_launch.procutil import run_streaming, sleep_s
 from stage0_launch.runbook_merge import run_runbook_merge
@@ -22,6 +24,46 @@ def github_token_from_env() -> str:
 def github_username_from_env() -> str:
     """GHCR/docker login username: prefer GITHUB_USERNAME; GH_USERNAME is legacy."""
     return (os.environ.get("GITHUB_USERNAME") or os.environ.get("GH_USERNAME") or "").strip()
+
+
+def npm_env_for_github_packages() -> dict[str, str]:
+    """
+    Env overrides so ``npm install`` / ``npm run build-package`` can read GitHub Packages.
+
+    npm expects ``NODE_AUTH_TOKEN``; the launch image sets ``GITHUB_TOKEN`` / ``GH_TOKEN`` but
+    not ``NODE_AUTH_TOKEN``. Docker builds (``--build-arg NODE_AUTH_TOKEN``) inherit the same.
+    """
+    if os.environ.get("NODE_AUTH_TOKEN", "").strip():
+        return {}
+    tok = github_token_from_env()
+    if not tok:
+        return {}
+    return {"NODE_AUTH_TOKEN": tok}
+
+
+@contextmanager
+def npm_github_packages_auth_env() -> Generator[dict[str, str] | None, None, None]:
+    """
+    Extra env for ``npm`` when SPAs pull dependencies from GitHub Packages.
+
+    Sets ``NODE_AUTH_TOKEN`` from ``GITHUB_TOKEN`` / ``GH_TOKEN`` when needed (for nested
+    ``docker build``), and a temporary ``NPM_CONFIG_USERCONFIG`` with ``_authToken`` because
+    plain ``NODE_AUTH_TOKEN`` alone is not always enough for ``npm install``.
+    """
+    auth_tok = os.environ.get("NODE_AUTH_TOKEN", "").strip() or github_token_from_env()
+    if not auth_tok:
+        yield None
+        return
+    extra: dict[str, str] = {}
+    extra.update(npm_env_for_github_packages())
+    tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".launch-npmrc")
+    try:
+        tmp.write(f"//npm.pkg.github.com/:_authToken={auth_tok}\n")
+        tmp.close()
+        extra["NPM_CONFIG_USERCONFIG"] = tmp.name
+        yield extra
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
 
 
 @dataclass
@@ -309,18 +351,21 @@ def _launch_one_repo(
                 line_prefix=line_prefix,
             )
         elif publish == "npm":
-            run_streaming(
-                ["npm", "run", "build-package"],
-                cwd=repo_path,
-                log=log,
-                line_prefix=line_prefix,
-            )
-            run_streaming(
-                ["npm", "run", "publish-package"],
-                cwd=repo_path,
-                log=log,
-                line_prefix=line_prefix,
-            )
+            with npm_github_packages_auth_env() as _npm_env:
+                run_streaming(
+                    ["npm", "run", "build-package"],
+                    cwd=repo_path,
+                    env=_npm_env,
+                    log=log,
+                    line_prefix=line_prefix,
+                )
+                run_streaming(
+                    ["npm", "run", "publish-package"],
+                    cwd=repo_path,
+                    env=_npm_env,
+                    log=log,
+                    line_prefix=line_prefix,
+                )
         elif publish == "pipenv":
             run_streaming(
                 ["pipenv", "run", "build-package"],
@@ -477,11 +522,13 @@ def umbrella_clone_services(
                         ["make", "build-package"], cwd=str(repo_path), check=False
                     )
                 elif publish == "npm":
-                    subprocess.run(
-                        ["npm", "run", "build-package"],
-                        cwd=str(repo_path),
-                        check=False,
-                    )
+                    with npm_github_packages_auth_env() as _npm_env:
+                        subprocess.run(
+                            ["npm", "run", "build-package"],
+                            cwd=str(repo_path),
+                            check=False,
+                            env={**os.environ, **(_npm_env or {})},
+                        )
                 elif publish == "pipenv":
                     subprocess.run(
                         ["pipenv", "run", "build-package"],

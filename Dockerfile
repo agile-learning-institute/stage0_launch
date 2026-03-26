@@ -50,8 +50,11 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     "flask>=3.0" "gunicorn>=22.0" "pyyaml>=6.0" "jsonschema>=4.0"
 
 COPY gunicorn.conf.py ./
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 COPY src ./src
 
 EXPOSE 8080
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["gunicorn", "-c", "gunicorn.conf.py", "stage0_launch.wsgi:application"]

@@ -13,9 +13,10 @@ from stage0_launch.procutil import run_streaming
 MERGE_IMAGE = "ghcr.io/agile-learning-institute/stage0_runbook_merge:latest"
 
 
-def _docker_inspect_launchpad_source() -> Path | None:
+def _docker_inspect_bind_source(mount_destination: str) -> Path | None:
     """
-    Read ``.Mounts[].Source`` for ``Destination == /Launchpad`` from ``docker inspect``.
+    Read ``.Mounts[].Source`` where ``Destination`` equals ``mount_destination`` from
+    ``docker inspect``.
 
     On Docker Desktop, ``findmnt -o SOURCE`` can return a path that is not usable for
     nested ``docker run -v`` (wrong or empty bind). The engine's mount record matches
@@ -63,7 +64,7 @@ def _docker_inspect_launchpad_source() -> Path | None:
         for m in mounts:
             if not isinstance(m, dict):
                 continue
-            if m.get("Destination") != "/Launchpad":
+            if m.get("Destination") != mount_destination:
                 continue
             src = m.get("Source")
             if isinstance(src, str) and src and not src.startswith("/dev/"):
@@ -71,9 +72,9 @@ def _docker_inspect_launchpad_source() -> Path | None:
     return None
 
 
-def _findmnt_json_source() -> Path | None:
+def _findmnt_json_source(mount_point: Path) -> Path | None:
     r = subprocess.run(
-        ["findmnt", "-J", "/Launchpad"],
+        ["findmnt", "-J", str(mount_point)],
         capture_output=True,
         text=True,
     )
@@ -95,9 +96,9 @@ def _findmnt_json_source() -> Path | None:
     return None
 
 
-def _findmnt_plain_source() -> Path | None:
+def _findmnt_plain_source(mount_point: Path) -> Path | None:
     r = subprocess.run(
-        ["findmnt", "-n", "-o", "SOURCE", "/Launchpad"],
+        ["findmnt", "-n", "-o", "SOURCE", str(mount_point)],
         capture_output=True,
         text=True,
     )
@@ -109,15 +110,17 @@ def _findmnt_plain_source() -> Path | None:
     return Path(src)
 
 
-def host_launchpad_bind_source() -> Path | None:
+def host_bind_source_for_launchpad_root(launchpad_root: Path) -> Path | None:
     """
-    Path the **host** Docker daemon should use for the launchpad bind mount.
+    Path the **host** Docker daemon should use for the directory bound at ``launchpad_root``
+    inside the launch environment.
 
     Resolution order:
 
     1. ``STAGE0_LAUNCHPAD_HOST_PATH`` — absolute host path (most reliable when set).
-    2. ``docker inspect`` — mount source recorded for ``/Launchpad`` (works with Docker Desktop).
-    3. ``findmnt -J`` / plain ``findmnt`` — fallback on Linux without inspect.
+    2. ``docker inspect`` — bind source for ``launchpad_root`` as the mount destination
+       (e.g. ``/Launchpad`` or ``/launchpad`` when ``LAUNCHPAD_DIR`` overrides the in-container path).
+    3. ``findmnt`` — fallback on Linux when inspect is unavailable.
 
     Set ``STAGE0_LAUNCH_CONTAINER_NAME`` (compose sets this to match ``container_name``) so
     inspect works even when ``HOSTNAME`` is not the container id.
@@ -126,15 +129,35 @@ def host_launchpad_bind_source() -> Path | None:
     if override:
         return Path(override).expanduser().resolve()
 
-    src = _docker_inspect_launchpad_source()
+    dest = str(launchpad_root.resolve())
+    src = _docker_inspect_bind_source(dest)
     if src is not None:
         return src
 
-    src = _findmnt_json_source()
+    src = _findmnt_json_source(launchpad_root)
     if src is not None:
         return src
 
-    return _findmnt_plain_source()
+    return _findmnt_plain_source(launchpad_root)
+
+
+def host_launchpad_bind_source() -> Path | None:
+    """Backward-compatible alias for ``/Launchpad`` as the in-container mount."""
+    return host_bind_source_for_launchpad_root(CONTAINER_LAUNCHPAD)
+
+
+def _paths_under_launchpad(
+    repo_r: Path, specs_r: Path, lp: Path
+) -> tuple[Path, Path]:
+    try:
+        rel_repo = repo_r.relative_to(lp)
+        rel_specs = specs_r.relative_to(lp)
+    except ValueError as e:
+        raise RuntimeError(
+            "Repo and specifications paths must lie under the launchpad directory "
+            f"({lp}) when resolving merge bind mounts."
+        ) from e
+    return rel_repo, rel_specs
 
 
 def resolve_merge_volume_paths(
@@ -145,30 +168,27 @@ def resolve_merge_volume_paths(
     """
     Return ``(repo_src, specifications_src)`` for ``docker -v`` as seen by the daemon.
 
-    When the launchpad is the container mount at ``/Launchpad``, paths under it must be
-    rewritten to the host bind source so nested ``docker run`` works (Docker-outside-of-Docker).
+    When the launchpad root is a bind mount inside the launch container (``/Launchpad``,
+    ``/launchpad``, or ``LAUNCHPAD_DIR``), paths under it must be rewritten to the host
+    bind source so nested ``docker run`` works (Docker-outside-of-Docker).
     """
     lp = launchpad.resolve()
     repo_r = repo_dir.resolve()
     specs_r = specifications_dir.resolve()
-    if lp == CONTAINER_LAUNCHPAD.resolve():
-        host_root = host_launchpad_bind_source()
-        if host_root is None:
-            raise RuntimeError(
-                "Running inside the launch container: cannot resolve the host launchpad path "
-                "for merge (docker bind mounts must use paths the host daemon knows). "
-                "Set STAGE0_LAUNCHPAD_HOST_PATH to your host launchpad directory, or ensure "
-                "/Launchpad is bind-mounted and findmnt reports SOURCE."
-            )
-        try:
-            rel_repo = repo_r.relative_to(lp)
-            rel_specs = specs_r.relative_to(lp)
-        except ValueError as e:
-            raise RuntimeError(
-                "Repo and specifications paths must lie under the launchpad directory "
-                f"({lp}) when resolving merge bind mounts."
-            ) from e
+    host_root = host_bind_source_for_launchpad_root(lp)
+    if host_root is not None:
+        rel_repo, rel_specs = _paths_under_launchpad(repo_r, specs_r, lp)
         return host_root / rel_repo, host_root / rel_specs
+
+    for p in (repo_r, specs_r):
+        ps = str(p)
+        if ps.startswith("/Launchpad/") or ps.startswith("/launchpad/"):
+            raise RuntimeError(
+                "Cannot resolve the host launchpad path for merge (nested docker bind mounts "
+                "must use paths the host daemon knows). Set STAGE0_LAUNCHPAD_HOST_PATH to your "
+                "host launchpad directory, or ensure the launchpad bind mount is visible to "
+                "docker inspect / findmnt."
+            )
     return repo_r, specs_r
 
 

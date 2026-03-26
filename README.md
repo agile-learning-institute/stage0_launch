@@ -37,7 +37,7 @@ Use these two names everywhere for Stage0 Launch:
 | **`GITHUB_TOKEN`** | The PAT secret (`ghp_…`, `github_pat_…`, …). Same idea as GitHub Actions’ built-in `GITHUB_TOKEN`, but yours is a user or fine-grained PAT from account settings. |
 | **`GITHUB_USERNAME`** | Your **GitHub login** (`https://github.com/<this>`), not display name or email. GHCR `docker login` uses this as the registry user and the PAT as the password. Use the account the token belongs to (or the bot user for a bot token). |
 
-**Why you sometimes see `GH_TOKEN` / `GH_USERNAME`:** the GitHub CLI and other tools historically used the shorter `GH_*` prefix. This project still **accepts** those as fallbacks if `GITHUB_*` is unset, but you do **not** need to set both. For **`docker run`**, pass **`GITHUB_TOKEN`** and **`GITHUB_USERNAME`** as above (or export the legacy names and add matching **`-e`** flags if you use them).
+**`GH_TOKEN` / `GH_USERNAME`:** the GitHub CLI uses the **`GH_*`** names. The container **entrypoint** copies **`GITHUB_*` → `GH_*`** (and the other way if you only pass **`GH_*`**), so you do **not** need duplicate **`-e`** flags—set **`GITHUB_TOKEN`** and **`GITHUB_USERNAME`** on the host as above.
 
 ## Developer quick start (Docker Compose)
 
@@ -54,7 +54,7 @@ Open **http://localhost:8080** (or **`LAUNCH_HOST_PORT`**).
 
 The container uses **`/Launchpad`** as the launchpad root (the image creates it; Compose mounts your host folder there). Set **`LAUNCHPAD_HOST`** to the host directory to mount (default **`..`** relative to the compose file). You do **not** need **`LAUNCHPAD_DIR`** inside the container.
 
-**`docker-compose.yaml`** can supply the container **`GITHUB_TOKEN`** from host **`GITHUB_TOKEN`**, or from host **`GH_TOKEN`** alone if **`GITHUB_TOKEN`** is unset. It can set **`GITHUB_USERNAME`** from host **`GITHUB_USERNAME`** or from **`GH_USERNAME`**.
+**`docker-compose.yaml`** maps host credentials into the container the same way: host **`GITHUB_TOKEN`** or **`GH_TOKEN`**, and **`GITHUB_USERNAME`** or **`GH_USERNAME`**. The image entrypoint then syncs **`GITHUB_*`** and **`GH_*`** inside the container.
 
 ## Launchpad layout
 
@@ -96,9 +96,10 @@ Pasted specs are still saved under **`.stage0-bootstrap/specs/`** until bootstra
 | `LAUNCHPAD_DIR` | Optional override for the launchpad path (tests, nonstandard layouts). If unset: use **`/Launchpad`** when that directory exists, else the process current directory. |
 | `LAUNCHPAD_HOST` | **Compose only**: host path mounted at **`/Launchpad`** in the container (default **`..`**). |
 | `GITHUB_TOKEN` | **Primary.** PAT for `git`, API, and GHCR. |
-| `GH_TOKEN` | Optional legacy alias; same value as `GITHUB_TOKEN` if you use tools that only read `GH_TOKEN`. |
+| `GH_TOKEN` | Legacy name read by **`gh`**. In the **container image**, the entrypoint sets it from **`GITHUB_TOKEN`** when unset (and the reverse). |
+| `NODE_AUTH_TOKEN` | Optional. **Launch** maps **`GITHUB_TOKEN`** / **`GH_TOKEN`** into npm (via **`NODE_AUTH_TOKEN`** and **`NPM_CONFIG_USERCONFIG`**) for **`publish: npm`** so `npm install` / Docker can read **`npm.pkg.github.com`**. |
 | `GITHUB_USERNAME` | **Primary.** GitHub login for `docker login ghcr.io` when publishing images. |
-| `GH_USERNAME` | Optional legacy alias for `GITHUB_USERNAME`. Compose can fill `GITHUB_USERNAME` from host `GH_USERNAME` when the latter is set alone. |
+| `GH_USERNAME` | Legacy alias; in the **container image**, the entrypoint mirrors **`GITHUB_USERNAME`** when unset. On the host, Compose can still map **`GH_USERNAME`** → **`GITHUB_USERNAME`**. |
 | `STAGE0_LAUNCH_CONTAINER_NAME` | Should match the Docker **`--name`** of this container so `docker inspect` can resolve launchpad bind mounts for nested `docker run`. |
 
 ## Testing

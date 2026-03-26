@@ -13,6 +13,11 @@ _UMBRELLA_KEY = "umbrella"
 _SAFE_FOLDER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
+def valid_umbrella_folder_name(name: str) -> bool:
+    """True if ``name`` is safe to use as the umbrella directory name in the stub."""
+    return bool(name and _SAFE_FOLDER.match(name.strip()))
+
+
 def stub_path(launchpad: Path) -> Path:
     return launchpad / STUB_NAME
 
@@ -38,7 +43,7 @@ def read_stub_umbrella(launchpad: Path) -> str | None:
 
 
 def write_stub(launchpad: Path, umbrella_folder: str) -> None:
-    if not _SAFE_FOLDER.match(umbrella_folder.strip()):
+    if not valid_umbrella_folder_name(umbrella_folder):
         raise ValueError("invalid umbrella folder name for stub")
     stub_path(launchpad).write_text(
         yaml.safe_dump({_UMBRELLA_KEY: umbrella_folder.strip()}, sort_keys=False),
