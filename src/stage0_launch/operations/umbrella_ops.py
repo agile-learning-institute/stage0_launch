@@ -14,6 +14,16 @@ from stage0_launch.runbook_merge import run_runbook_merge
 from stage0_launch.yqutil import yq_eval
 
 
+def github_token_from_env() -> str:
+    """PAT: prefer GITHUB_TOKEN; GH_TOKEN is accepted for GitHub CLI compatibility."""
+    return (os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or "").strip()
+
+
+def github_username_from_env() -> str:
+    """GHCR/docker login username: prefer GITHUB_USERNAME; GH_USERNAME is legacy."""
+    return (os.environ.get("GITHUB_USERNAME") or os.environ.get("GH_USERNAME") or "").strip()
+
+
 @dataclass
 class UmbrellaContext:
     umbrella_dir: Path
@@ -79,7 +89,7 @@ class UmbrellaContext:
             capture_output=True,
             text=True,
         )
-        token = os.environ.get("GITHUB_TOKEN", "")
+        token = github_token_from_env()
         subprocess.run(
             [
                 "git",
@@ -94,14 +104,12 @@ class UmbrellaContext:
         log.flush()
 
     def docker_login(self, log: TextIO) -> None:
-        token = os.environ.get("GITHUB_TOKEN", "")
+        token = github_token_from_env()
         if not token:
-            raise RuntimeError("GITHUB_TOKEN required for docker login")
+            raise RuntimeError("GITHUB_TOKEN or GH_TOKEN required for docker login")
         registry = self.docker_host.replace("https://", "").split("/")[0]
         if registry == "ghcr.io":
-            user = os.environ.get("GH_USERNAME") or os.environ.get(
-                "GITHUB_USERNAME", ""
-            )
+            user = github_username_from_env()
             if not user:
                 gh_r = subprocess.run(
                     ["gh", "api", "user", "--jq", ".login"],
@@ -130,8 +138,8 @@ class UmbrellaContext:
                         user = ""
             if not user or user == "null":
                 raise RuntimeError(
-                    "GHCR login needs your personal GitHub username (GH_USERNAME) "
-                    "or token with user API access."
+                    "GHCR login needs GITHUB_USERNAME (or GH_USERNAME), "
+                    "or a token that can call the GitHub user API."
                 )
             log.write(f"Logging in to ghcr.io as {user}...\n")
             log.flush()
@@ -405,9 +413,9 @@ def _summarize_launch_failures(
 def umbrella_launch_services(
     ctx: UmbrellaContext, services_list: str, log: TextIO
 ) -> None:
-    token = os.environ.get("GITHUB_TOKEN", "")
+    token = github_token_from_env()
     if not token:
-        raise RuntimeError("GITHUB_TOKEN required")
+        raise RuntimeError("GITHUB_TOKEN or GH_TOKEN required")
     log.write("Configuring git and docker for push...\n")
     log.flush()
     ctx.docker_login(log)
@@ -538,8 +546,8 @@ def umbrella_delete_services_only(
 
 
 def cmd_launch_all(ctx: UmbrellaContext, log: TextIO) -> None:
-    if not os.environ.get("GITHUB_TOKEN"):
-        raise RuntimeError("GITHUB_TOKEN required")
+    if not github_token_from_env():
+        raise RuntimeError("GITHUB_TOKEN or GH_TOKEN required")
     log.write("Configuring git and docker for push...\n")
     log.flush()
     ctx.git_https_setup(log)
