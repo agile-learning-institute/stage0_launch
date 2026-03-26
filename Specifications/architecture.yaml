@@ -1,5 +1,5 @@
 # Example architecture.yaml — replace with the file from your Stage0 Architect conversation.
-# Describes domains (runbook, schema, common_code, sample, etc.) and their repos and templates.
+# Describes domains (schema, common_code, game, care, etc.) and their repos and templates.
 
 architecture:
   organization: Your Organization
@@ -10,20 +10,6 @@ architecture:
     - name: staging
     - name: production
   domains:
-    - name: runbook
-      description: SRE Automation using Stage0 Runbook System
-      repos:
-        - name: runbook_api
-          description: Runbook Automation API Server
-          template: agile-learning-institute/stage0_template_runbook_api
-          publish: make
-          type: api
-          port: 8500
-        - name: runbook_spa
-          description: Runbook SPA (utility container)
-          template: N/A
-          type: spa_ref
-          port: 8501
     - name: schema
       description: MongoDB Database Configuration and Management
       repos:
@@ -32,12 +18,11 @@ architecture:
           template: agile-learning-institute/stage0_template_configurator_api
           publish: make
           type: api
-          port: 8502
+          port: 8500
         - name: configurator_spa
           description: MongoDB Configurator SPA
-          template: N/A
           type: spa_ref
-          port: 8503
+          port: 8501
     - name: common_code
       description: Shared code (NPM / PyPI)
       repos:
@@ -46,13 +31,13 @@ architecture:
           template: agile-learning-institute/stage0_template_py_utils
           publish: pipenv
           type: api
-          port: 8504
+          port: 8502
         - name: spa_utils
           description: Vue NPM SPA Utility Library
           template: agile-learning-institute/stage0_template_vue_utils
           publish: npm
           type: spa
-          port: 8505
+          port: 8503
     - name: game
       description: The Healing Game Service used by patients in therapeutic care settings.
       data_domains:
@@ -69,13 +54,13 @@ architecture:
           template: agile-learning-institute/stage0_template_flask_mongo
           publish: pipenv
           type: api
-          port: 8506
+          port: 8504
         - name: game_spa
           description: Vue Phaser SPA
           template: agile-learning-institute/stage0_template_vue_phaser
           publish: npm
           type: spa
-          port: 8507
+          port: 8505
     - name: care
       description: The Healing Game Care Provider portal.
       data_domains:
@@ -94,10 +79,10 @@ architecture:
           template: agile-learning-institute/stage0_template_flask_mongo
           publish: pipenv
           type: api
-          port: 8508
+          port: 8506
         - name: care_spa
           description: Vue Phaser SPA
           template: agile-learning-institute/stage0_template_vue_vuetify
           publish: npm
           type: spa
-          port: 8509
+          port: 8507
