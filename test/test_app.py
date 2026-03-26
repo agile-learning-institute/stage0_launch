@@ -7,6 +7,13 @@ from stage0_launch.launchpad_stub import read_stub_umbrella, stub_path, write_st
 from test.specs_minimal import MIN_ARCH, MIN_CATALOG, MIN_PRODUCT, write_three_specs
 
 
+def _client_with_launchpad(monkeypatch, tmp_path):
+    monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
+    app = create_app()
+    app.config["TESTING"] = True
+    return app.test_client()
+
+
 @pytest.fixture()
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
@@ -25,7 +32,19 @@ def test_thanks_page_ok(client):
     assert r.status_code == 200
     assert b"Thanks for launching" in r.data
     assert b".stage0-bootstrap" in r.data
+    assert b"CONTRIBUTING.md" in r.data
     assert b"btn-exit" in r.data
+
+
+def test_thanks_shows_cli_from_product(monkeypatch, tmp_path):
+    slug = "myslug"
+    write_three_specs(tmp_path / slug / "Specifications", slug=slug)
+    write_stub(tmp_path, slug)
+    client = _client_with_launchpad(monkeypatch, tmp_path)
+    r = client.get("/thanks")
+    assert r.status_code == 200
+    assert b"tp up all" in r.data
+    assert b"myslug/CONTRIBUTING.md" in r.data
 
 
 def test_exit_page_ok(client):

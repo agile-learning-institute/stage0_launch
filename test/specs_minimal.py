@@ -6,7 +6,7 @@ MIN_PRODUCT = """info:
   slug: {slug}
   developer_cli: tp
   db_name: test_db
-  base_port: "8080"
+  base_port: 8080
 organization:
   name: "Test Org"
   email: test@example.com
@@ -18,22 +18,23 @@ organization:
   docker_org: testorg
 """
 
-MIN_ARCH = """environments:
-  - name: dev
-domains:
-  - name: dom1
-    description: "Domain one"
-    data_domains:
-      controls: []
-      creates: []
-      consumes: []
-    repos:
-      - name: svc1
-        description: "Service"
-        type: api
-        port: 8080
-        template: agile-learning-institute/stage0_template_runbook_api
-        publish: make
+MIN_ARCH = """architecture:
+  environments:
+    - name: dev
+  domains:
+    - name: dom1
+      description: "Domain one"
+      data_domains:
+        controls: []
+        creates: []
+        consumes: []
+      repos:
+        - name: svc1
+          description: "Service"
+          type: api
+          port: 8080
+          template: agile-learning-institute/stage0_template_flask_mongo
+          publish: make
 """
 
 MIN_CATALOG = """data_dictionaries:

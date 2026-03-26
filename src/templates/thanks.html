@@ -26,6 +26,13 @@
 <body>
   <h1>Thanks for launching with Stage0</h1>
   <p>Pasted specifications and other files under <code>.stage0-bootstrap</code> have been removed. This Stage0 Launch instance is shutting down.</p>
+  {% if slug and developer_cli %}
+  <p>Install the developer CLI, then start the full stack with <code>{{ developer_cli }} up all</code>. See <code>{{ slug }}/CONTRIBUTING.md</code> in your launchpad for step-by-step instructions.</p>
+  {% elif slug %}
+  <p>Install the developer CLI and start the system (for example <code>up all</code> once the CLI is on your PATH). See <code>{{ slug }}/CONTRIBUTING.md</code> in your launchpad for instructions.</p>
+  {% else %}
+  <p>Install the developer CLI and start the system; see <code>CONTRIBUTING.md</code> at the umbrella repository root for instructions.</p>
+  {% endif %}
   <p class="muted">If the run finished with errors, fix your specs or repos and start Stage0 Launch again; use interactive mode to launch, clone, or delete services.</p>
   <p><button type="button" id="btn-exit">Exit</button></p>
   <p id="exit-msg" class="muted" style="display:none;">Shutting down…</p>

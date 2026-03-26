@@ -87,6 +87,24 @@ def _schedule_container_shutdown(*, delay_seconds: float = 1.5) -> None:
     threading.Thread(target=_run, daemon=True).start()
 
 
+def _thanks_context() -> dict[str, Any]:
+    """Slug and developer CLI name for the post-bootstrap thank-you page."""
+    lp = launchpad_dir()
+    disc = discover(lp)
+    slug = disc.slug if disc.ok else None
+    developer_cli: str | None = None
+    if slug:
+        prod = lp / slug / "Specifications" / "product.yaml"
+        if prod.is_file():
+            try:
+                raw = yq_eval(".info.developer_cli", prod)
+                if raw and raw != "null":
+                    developer_cli = raw.strip()
+            except Exception:
+                pass
+    return {"slug": slug, "developer_cli": developer_cli}
+
+
 def _status_payload() -> dict[str, Any]:
     lp = launchpad_dir()
     disc = discover(lp)
@@ -117,7 +135,7 @@ def create_app() -> Flask:
 
     @app.get("/thanks")
     def thanks():
-        return render_template("thanks.html")
+        return render_template("thanks.html", **_thanks_context())
 
     @app.get("/exit")
     def exit_page():
