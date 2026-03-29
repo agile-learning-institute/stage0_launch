@@ -1,189 +1,83 @@
-# StageZero Launch – Background Context
-
-## Overview
-
-**StageZero Launch** is a framework for rapidly launching a software product while maintaining strong engineering quality and craftsmanship.
-
-The system emphasizes strong engineering practices, developer experience, and structured workflows that work well with modern AI code assistants.
-
----
-
-# Core Principles
-
-### Your product is only as good as your engineering team
-
-Key ideas:
-
-* **Developer Experience** is a key ingredient for a profitable product.
-* **Software craftsmanship** creates a delightful developer experience.
-* **Vibe coding does not mean removing engineers**, and it should not compromise craftsmanship.
-* **Product launch** — the time from idea to MVP — is the biggest graveyard in software.
-
-StageZero focuses on improving this launch phase.
-
----
-
-# StageZero Design–Launch Framework
-
-The framework separates the process into **Design** and **Launch** phases.
-
-## Design Phase
-
-Participants:
-
-* Engineering Team
-* Facilitator
-
-Process:
-
-1. Conduct a **Design Workshop**
-2. Capture **Observations**
-
-The workshop allows the engineering team to explore ideas collaboratively and record observations that guide system design.
-
----
-
-## Launch Phase
-
-Participants:
-
-* Architect
-
-Process:
-
-1. Convert observations into **Specifications**
-2. Apply **Templates**
-3. **Merge** templates with specifications
-4. Produce a **Functional Application**
-
-The goal is to quickly generate a working system that provides a structured starting point for development.
-
----
-
-# StageZero Umbrella Repository
-
-StageZero is implemented using an **umbrella repository** that contains system-wide information and tooling.
-
-Typical structure:
-
-```
-README.md
-CONTRIBUTING.md
-Makefile
-/DeveloperEdition
-/Research
-/Specifications
-/Tasks
-/Workshops
-```
-
-Descriptions:
-
-**README.md**
-Product overview and implementation roadmap.
-
-**CONTRIBUTING.md**
-Developer onboarding process.
-
-**Makefile**
-Developer commands for running StageZero launch workflows.
-
-**/DeveloperEdition**
-Developer CLI and engineering standards.
-
-**/Research**
-A location for engineers to share research and technical findings.
-
-**/Specifications**
-Design specifications written as YAML files.
-
-**/Tasks**
-A task framework designed for use with LLM code assistants.
-
-**/Workshops**
-Observations captured from design workshops.
-
----
-
-# StageZero Post-Launch Philosophy
-
-Launching a system is only the beginning.
-
-> Launch is not orbit.
-
-Generated code should be considered:
-
-* Functional (it does something)
-* Well crafted
-* Well tested
-* Packaged for automated CI
-* A starting point for rapid iteration
-
-Generated code is **not**:
-
-* Highly customized or branded
-* A production-ready MVP
-* Everything required for a finished product
-
----
-
-# Future StageZero Services (“Mission Control”)
-
-Post-launch services may include:
-
-### Automation & LLM Integration
-
-* Long-running LLM workflows integrated into automation systems
-* Async pub/sub architecture templates
-* Cloud deployment templates and runbooks (e.g., Terraform)
-
-### MCP + Bot Integration
-
-# Architecture Strategy
-
-StageZero tools are **technology agnostic**, but templates define specific implementations.
-
-Changes to architecture can be introduced by creating new templates.
-
----
-
-## Demo Architecture
-
-The reference demo system uses a **microservice architecture**:
-
-Frontend:
-
-* VueJS web applications
-
-Backend:
-
-* Python RESTful APIs
-
-Database:
-
-* MongoDB
-
----
-
-## Why Microservices Work Well with AI Code Assistants
-
-Microservices align well with LLM-based development because they create:
-
-* Small independently deployable services
-* Clearly defined bounded domains
-* Contract-based interfaces
-* Smaller code contexts for AI reasoning
-
-AI assistants can:
-
-* Consume engineering standards
-* Read utility documentation
-* Focus on one service or domain at a time
-
----
-
-## Long-Running LLM Coding Tasks
-
-StageZero repositories include a **Tasks framework** designed to support long-running LLM-assisted coding workflows.
-
-This enables structured collaboration between engineers and AI coding assistants.
+# Stage0 Launch System – Context Summary
+
+## Core Philosophy
+Stage0 Launch is designed to help teams move from idea → working system quickly, without sacrificing software craftsmanship.  
+The key belief: **speed without quality leads to failure**.
+
+## Key Principles
+- Developer Experience is critical to product success.
+- Software craftsmanship enables sustainable velocity.
+- AI-assisted development ("vibecoding") still requires engineers and discipline.
+- The biggest risk in software is failing to reach a usable MVP.
+
+## Design → Launch Workflow
+Stage0 follows a structured pipeline:
+
+1. **Design Phase**
+   - Design workshops with stakeholders and engineers
+   - Capture observations and workflows
+   - Translate into structured specifications
+
+2. **Specification Phase**
+   - Architect converts observations into formal YAML specs
+   - Specs define domains, data, and system structure
+
+3. **Launch Phase**
+   - Templates + specs are merged
+   - A functional application is generated
+
+## System Architecture Approach
+- Microservice architecture with **bounded domains**
+- Each service aligns to a **user experience or workflow**
+- API-driven services with SPA frontend (BFF pattern)
+- Poly-repo structure for independent deployability
+- Mongo-style data domains (collection-oriented ownership)
+
+This architecture is optimized for:
+- AI code assistants (clear boundaries, focused context)
+- Incremental iteration and scaling
+- Contract-driven development
+
+## Umbrella Repository Structure
+Stage0 produces a central “umbrella repo” containing:
+- Product overview and roadmap
+- Developer onboarding guides
+- CLI tooling and engineering standards
+- Design specifications (YAML)
+- Task framework for AI coding workflows
+- Research and workshop outputs
+
+## What Stage0 Produces
+The generated system is:
+
+- Functional and runnable locally (Docker)
+- Built with strong engineering practices
+- Includes automated CI/CD pipelines
+- End-to-end tested
+- Structured for rapid iteration
+- A **starting point**, not a finished product
+
+## What Stage0 Does NOT Do
+- Not a fully production-ready product
+- Not highly customized or branded
+- Not a replacement for engineers
+- Not a complete system
+
+## Mission Control Vision (Relevant to This Product)
+Stage0 enables products like Mission Control:
+- Expose CI/CD and infrastructure workflows via APIs
+- Drive workflows through interfaces like Discord bots
+- Support product management, testing, and operations workflows
+- Integrate with LLM-driven automation
+
+## How to Use This GPT
+This CustomGPT acts as a **Stage0 Architect**:
+- Guides users from idea → architecture
+- Defines bounded service domains and data models
+- Produces specification files (architecture.yaml, catalog.yaml, product.yaml)
+- Prepares systems for Stage0 Launch generation
+
+Final step:
+Use the generated specifications to run the Stage0 Launch process and create a working system.
+
+(*Page 9: CustomGPT → Specs → Launch*)

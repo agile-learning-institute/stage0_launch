@@ -4,7 +4,9 @@ Flask web UI and API to **bootstrap** a new umbrella (from pasted specifications
 
 ## Quick start
 
-From the directory you want as the **launchpad** (it is mounted at **`/Launchpad`** in the container):
+Use this [CustomGPT](https://chatgpt.com/g/g-69a8f1731e448191a023fb6740ff46fd-stage0-architect) to help you describe your idea using launch specifications, and then... 
+
+From an empty directory you want as the **launchpad**
 
 ```bash
 export GITHUB_TOKEN='<your-personal-access-token>'
@@ -22,26 +24,15 @@ docker run -d --rm --name stage0_launch \
 
 Open **http://localhost:8080**.
 
-Use an **empty** host folder for a clean bootstrap; the UI warns when the launchpad already has entries.
-
-Set **`STAGE0_LAUNCH_CONTAINER_NAME`** to the same value as **`docker run --name`** so nested Docker can resolve host bind paths (the app uses `docker inspect` for that name).
-
 ### GitHub token and username
 
-Create a **personal access token** with the scopes your workflow needs (repo, `write:packages` / `read:packages` for GHCR, etc.): [Creating a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+Use [this link](https://github.com/settings/tokens) to create a new GitHub **Classic** Token, with `repo`, `workflow`, `write:packages` scopes. If you want to use the *Delete* features of Stage0 tooling, also include `delete_repo` and `delete:package` scopes.
 
-Use these two names everywhere for Stage0 Launch:
-
-| Variable | Value |
-|----------|--------|
-| **`GITHUB_TOKEN`** | The PAT secret (`ghp_…`, `github_pat_…`, …). Same idea as GitHub Actions’ built-in `GITHUB_TOKEN`, but yours is a user or fine-grained PAT from account settings. |
-| **`GITHUB_USERNAME`** | Your **GitHub login** (`https://github.com/<this>`), not display name or email. GHCR `docker login` uses this as the registry user and the PAT as the password. Use the account the token belongs to (or the bot user for a bot token). |
-
-**`GH_TOKEN` / `GH_USERNAME`:** the GitHub CLI uses the **`GH_*`** names. The container **entrypoint** copies **`GITHUB_*` → `GH_*`** (and the other way if you only pass **`GH_*`**), so you do **not** need duplicate **`-e`** flags—set **`GITHUB_TOKEN`** and **`GITHUB_USERNAME`** on the host as above.
+If you want more information on Github Tokens, see [Creating a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens). 
 
 ## Developer quick start (Docker Compose)
 
-Use this when **developing this repo** or when you prefer Compose over a plain **`docker run`**.
+Use this when **contributing** or when you prefer Compose over a plain **`docker run`**.
 
 ```bash
 export GITHUB_TOKEN='<your-personal-access-token>'
@@ -54,7 +45,7 @@ Open **http://localhost:8080** (or **`LAUNCH_HOST_PORT`**).
 
 The container uses **`/Launchpad`** as the launchpad root (the image creates it; Compose mounts your host folder there). Set **`LAUNCHPAD_HOST`** to the host directory to mount (default **`..`** relative to the compose file). You do **not** need **`LAUNCHPAD_DIR`** inside the container.
 
-**`docker-compose.yaml`** maps host credentials into the container the same way: host **`GITHUB_TOKEN`** or **`GH_TOKEN`**, and **`GITHUB_USERNAME`** or **`GH_USERNAME`**. The image entrypoint then syncs **`GITHUB_*`** and **`GH_*`** inside the container.
+**`docker-compose.yaml`** maps host credentials into the container the same way: host **`GITHUB_TOKEN`**, and **`GITHUB_USERNAME`**. The image entrypoint then syncs **`GITHUB_*`** and **`GH_*`** inside the container.
 
 ## Launchpad layout
 
