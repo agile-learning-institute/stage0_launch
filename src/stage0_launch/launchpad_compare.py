@@ -87,6 +87,8 @@ def _path_is_ignored(
     if any(p in _IGNORE_DIR_NAMES for p in parts):
         return True
     name = rel.name
+    if name == ".DS_Store":
+        return True
     if name in DEPENDENCY_LOCK_BASENAMES:
         return True
     if name.endswith(_IGNORE_SUFFIXES):
