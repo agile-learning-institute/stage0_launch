@@ -148,7 +148,9 @@ def compare_launchpads(
     Compare two directory trees. Return 0 if equivalent under ignore rules,
     non-zero if differences exist (also writes a summary to ``out``).
 
-    Ignores match launchpad expectations: built-in noise, dependency lock basenames,
+    Ignores match **local diff** expectations: built-in noise, dependency lock
+    basenames (so “has run install” vs “fresh merge” trees compare without false
+    fails—**not** a recommendation to omit locks from git in real repos),
     per-root ``.gitignore`` (any depth), and optional ``--ignore-file`` patterns.
     """
     sink: TextIO = out if out is not None else sys.stdout

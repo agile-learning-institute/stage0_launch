@@ -101,7 +101,9 @@ Exercise **Docker runbook merge** against **local** `stage0_template_*` checkout
 
 On **macOS**, merge uses the same path resolution as the app: if you are not inside the Launch container, `findmnt` is unavailable and is ignored so Docker bind mounts use your normal filesystem paths (`runbook_merge` change).
 
-1. **merge-all** — copy umbrella + each service template into a launchpad (omits `.git` and **dependency lock files** so merged trees stay free of locks), merge umbrella using the **source** specifications directory, copy YAML into `<launchpad>/<slug>/Specifications`, then merge **every** service using **only** that umbrella `Specifications` tree:
+1. **merge-all** — copy umbrella + each service template into a launchpad (omits `.git` and **dependency lock files** present in your local template checkout so the materialized tree matches “pre-install” template content), merge umbrella using the **source** specifications directory, copy YAML into `<launchpad>/<slug>/Specifications`, then merge **every** service using **only** that umbrella `Specifications` tree:
+
+   **Consumer repos (real Launch / GitHub):** Stage0 **templates** do not ship committed lockfiles, and **template `.gitignore` must not list** those locks—otherwise new repos created from the template could not commit `Pipfile.lock` / `package-lock.json` after `pipenv install` / `npm install`. The merge-all copy step only avoids copying stray locks from your machine; it does **not** change Git policy in generated repos.
 
    ```bash
    pipenv run merge-all /path/to/merged_launchpad /path/to/Specifications --write-stub
@@ -110,7 +112,7 @@ On **macOS**, merge uses the same path resolution as the app: if you are not ins
    Override the templates parent (instead of `..`):  
    `PYTHONPATH=src python -m stage0_launch.cli merge-all --templates-root /other/parent ...`
 
-2. **launchpad-test** — compare two launchpad roots: skips what each tree’s `.gitignore` would skip (any depth), always skips common build noise and **dependency lock files** (`Pipfile.lock`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, etc.); optional `--ignore-file` adds fnmatch lines:
+2. **launchpad-test** — compare two launchpad roots: skips what each tree’s `.gitignore` would skip (any depth), common build noise, and **dependency lock basenames** as a **test convenience** (e.g. golden tree has locks after install, merged tree does not yet). That does **not** mean locks should stay out of git in real repos—only shrinks noise for this diff. Optional `--ignore-file` adds fnmatch lines:
 
    ```bash
    pipenv run launchpad-test /path/to/working /path/to/merged
