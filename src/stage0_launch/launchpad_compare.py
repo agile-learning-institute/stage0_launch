@@ -7,7 +7,8 @@ from typing import TextIO
 
 import pathspec
 
-# Basenames always skipped (dependency locks should not ship in templates / merge output).
+# Basenames skipped for launchpad-test diffs only (not a rule against committing
+# locks in real repos). merge-all also skips copying these from template trees.
 DEPENDENCY_LOCK_BASENAMES: frozenset[str] = frozenset(
     {
         "Pipfile.lock",
