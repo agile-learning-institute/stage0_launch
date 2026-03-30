@@ -8,6 +8,7 @@ flask = "*"
 gunicorn = "*"
 pyyaml = "*"
 jsonschema = "*"
+pathspec = "*"
 
 [dev-packages]
 pytest = "*"
@@ -20,6 +21,8 @@ format = "black src test"
 compose-up = "sh -c 'docker compose down && docker compose up --build -d'"
 container = "sh -c 'docker build -f Dockerfile -t stage0_launch:latest -t ghcr.io/agile-learning-institute/stage0_launch:latest .'"
 validate = "sh -c 'PYTHONPATH=src python -m stage0_launch.validate_host'"
+merge-all = "sh -c 'PYTHONPATH=src python -m stage0_launch.cli merge-all --templates-root .. \"$@\"' --"
+launchpad-test = "sh -c 'PYTHONPATH=src python -m stage0_launch.cli test \"$@\"' --"
 
 [requires]
 python_version = "3.12"

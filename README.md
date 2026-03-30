@@ -93,6 +93,33 @@ Pasted specs are still saved under **`.stage0-bootstrap/specs/`** until bootstra
 | `GH_USERNAME` | Legacy alias; in the **container image**, the entrypoint mirrors **`GITHUB_USERNAME`** when unset. On the host, Compose can still map **`GH_USERNAME`** → **`GITHUB_USERNAME`**. |
 | `STAGE0_LAUNCH_CONTAINER_NAME` | Should match the Docker **`--name`** of this container so `docker inspect` can resolve launchpad bind mounts for nested `docker run`. |
 
+## Local template testing (`merge-all` / `launchpad-test`)
+
+Exercise **Docker runbook merge** against **local** `stage0_template_*` checkouts (no GitHub repo create/clone/push). From this repo’s root, **`..`** is the intended `--templates-root` (sibling folders like `stage0_template_flask_mongo` under the same parent as `stage0_launch`).
+
+**Prerequisites:** `docker`, `yq`, and template directories present under `--templates-root`.
+
+On **macOS**, merge uses the same path resolution as the app: if you are not inside the Launch container, `findmnt` is unavailable and is ignored so Docker bind mounts use your normal filesystem paths (`runbook_merge` change).
+
+1. **merge-all** — copy umbrella + each service template into a launchpad (omits `.git` and **dependency lock files** so merged trees stay free of locks), merge umbrella using the **source** specifications directory, copy YAML into `<launchpad>/<slug>/Specifications`, then merge **every** service using **only** that umbrella `Specifications` tree:
+
+   ```bash
+   pipenv run merge-all /path/to/merged_launchpad /path/to/Specifications --write-stub
+   ```
+
+   Override the templates parent (instead of `..`):  
+   `PYTHONPATH=src python -m stage0_launch.cli merge-all --templates-root /other/parent ...`
+
+2. **launchpad-test** — compare two launchpad roots: skips what each tree’s `.gitignore` would skip (any depth), always skips common build noise and **dependency lock files** (`Pipfile.lock`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, etc.); optional `--ignore-file` adds fnmatch lines:
+
+   ```bash
+   pipenv run launchpad-test /path/to/working /path/to/merged
+   ```
+
+**Workflow:** Keep a **working** launchpad that you trust (do not mutate it while using it as the golden tree); point merge-all at a **read-only** path to its `Specifications` if that is your source of truth. Regenerate a **merged** launchpad (e.g. empty `mentorhub_launchpad`) from the same specs and local `stage0_template_*` copies; **`pipenv run launchpad-test working merged`** until the diff is acceptable. For each template repo, run **`make test`** before treating that template as validated; then re-run merge-all and compare again.
+
+Do **not** treat this as a substitute for a real **Launch** (GitHub template instantiation still matters for end-to-end checks).
+
 ## Testing
 
 Use **`pipenv run compose-up`** (see **Developer quick start**) so the app runs in the same image as production, with Docker socket and launchpad mounts. For fast feedback without the full stack, run **`pipenv run test`**.

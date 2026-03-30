@@ -73,11 +73,14 @@ def _docker_inspect_bind_source(mount_destination: str) -> Path | None:
 
 
 def _findmnt_json_source(mount_point: Path) -> Path | None:
-    r = subprocess.run(
-        ["findmnt", "-J", str(mount_point)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        r = subprocess.run(
+            ["findmnt", "-J", str(mount_point)],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return None
     if r.returncode != 0:
         return None
     try:
@@ -97,11 +100,14 @@ def _findmnt_json_source(mount_point: Path) -> Path | None:
 
 
 def _findmnt_plain_source(mount_point: Path) -> Path | None:
-    r = subprocess.run(
-        ["findmnt", "-n", "-o", "SOURCE", str(mount_point)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        r = subprocess.run(
+            ["findmnt", "-n", "-o", "SOURCE", str(mount_point)],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return None
     if r.returncode != 0:
         return None
     src = r.stdout.strip()

@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator, TextIO
 
+from stage0_launch.architecture_tasks import (
+    LaunchRepoTask,
+    collect_launch_tasks_for_services,
+)
 from stage0_launch.procutil import run_streaming, wait_for_git_remote_refs
 from stage0_launch.runbook_merge import run_runbook_merge
 from stage0_launch.yqutil import yq_eval
@@ -23,7 +27,9 @@ def github_token_from_env() -> str:
 
 def github_username_from_env() -> str:
     """GHCR/docker login username: prefer GITHUB_USERNAME; GH_USERNAME is legacy."""
-    return (os.environ.get("GITHUB_USERNAME") or os.environ.get("GH_USERNAME") or "").strip()
+    return (
+        os.environ.get("GITHUB_USERNAME") or os.environ.get("GH_USERNAME") or ""
+    ).strip()
 
 
 def npm_env_for_github_packages() -> dict[str, str]:
@@ -206,35 +212,6 @@ class UmbrellaContext:
                 raise RuntimeError(f"docker login {registry} failed")
 
 
-def _repo_lines_for_domain(
-    ctx: UmbrellaContext, svc: str
-) -> list[tuple[str, str, str]]:
-    q = (
-        f'.architecture.domains[] | select(.name == "{svc}") | .repos[] '
-        f'| select(.type == "api" or .type == "spa") '
-        f'| (.name + "|" + .template + "|" + (.publish // ""))'
-    )
-    r = subprocess.run(
-        ["yq", "-r", q, str(ctx.arch_file)],
-        capture_output=True,
-        text=True,
-    )
-    if r.returncode != 0:
-        return []
-    out: list[tuple[str, str, str]] = []
-    for line in r.stdout.splitlines():
-        line = line.strip()
-        if not line or line == "null":
-            continue
-        parts = line.split("|")
-        if len(parts) >= 2:
-            name = parts[0]
-            template = parts[1] if len(parts) > 1 else ""
-            publish = parts[2] if len(parts) > 2 else ""
-            out.append((name, template, publish))
-    return out
-
-
 def _repo_lines_clone(ctx: UmbrellaContext, svc: str) -> list[tuple[str, str]]:
     q = (
         f'.architecture.domains[] | select(.name == "{svc}") | .repos[] '
@@ -260,36 +237,17 @@ def _repo_lines_clone(ctx: UmbrellaContext, svc: str) -> list[tuple[str, str]]:
     return out
 
 
-@dataclass(frozen=True)
-class _LaunchRepoTask:
-    svc: str
-    repo_name: str
-    template: str
-    publish: str
-
-
 def _collect_launch_tasks(
     ctx: UmbrellaContext, services_list: str
-) -> list[_LaunchRepoTask]:
-    tasks: list[_LaunchRepoTask] = []
-    for svc in services_list.split():
-        if not svc:
-            continue
-        lines = _repo_lines_for_domain(ctx, svc)
-        if not lines:
-            continue
-        for repo_name, template, publish in lines:
-            if not repo_name:
-                continue
-            tasks.append(_LaunchRepoTask(svc, repo_name, template, publish))
-    return tasks
+) -> list[LaunchRepoTask]:
+    return collect_launch_tasks_for_services(ctx.arch_file, services_list)
 
 
 def _launch_one_repo(
     ctx: UmbrellaContext,
     token: str,
     source: Path,
-    task: _LaunchRepoTask,
+    task: LaunchRepoTask,
     log: TextIO,
     line_prefix: str,
 ) -> None:
@@ -420,7 +378,7 @@ def _safe_launch_one_repo(
     ctx: UmbrellaContext,
     token: str,
     source: Path,
-    task: _LaunchRepoTask,
+    task: LaunchRepoTask,
     log: TextIO,
     line_prefix: str,
 ) -> tuple[str, str, Exception] | None:
@@ -480,7 +438,9 @@ def umbrella_launch_services(
     log.flush()
     if failures:
         names = ", ".join(r for r, _s, _e in failures)
-        raise RuntimeError(f"{len(failures)} repo(s) failed after all attempts: {names}")
+        raise RuntimeError(
+            f"{len(failures)} repo(s) failed after all attempts: {names}"
+        )
 
 
 def umbrella_clone_services(
