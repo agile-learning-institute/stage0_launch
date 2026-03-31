@@ -115,6 +115,15 @@ def _load_extra_patterns(ignore_file: Path | None) -> list[str]:
     return [ln.rstrip("\n") for ln in text.splitlines()]
 
 
+def _bytes_equal_allow_missing_final_newline(a: bytes, b: bytes) -> bool:
+    """True if identical, or differ only by a single trailing LF (merge output often omits it)."""
+    if a == b:
+        return True
+    if a == b + b"\n" or a + b"\n" == b:
+        return True
+    return False
+
+
 def _collect_files(
     root: Path,
     gitignore_pairs: list[tuple[Path, pathspec.PathSpec]],
@@ -179,7 +188,7 @@ def compare_launchpads(
         except OSError as e:
             diffs.append(f"differ (read error): {key} ({e})")
             continue
-        if lb != rb:
+        if not _bytes_equal_allow_missing_final_newline(lb, rb):
             diffs.append(f"differ: {key}")
             if len(diffs) >= 500:
                 diffs.append("… (truncated)")

@@ -106,7 +106,13 @@ On **macOS**, merge uses the same path resolution as the app: if you are not ins
    **Consumer repos (real Launch / GitHub):** Stage0 **templates** do not ship committed lockfiles, and **template `.gitignore` must not list** those locks—otherwise new repos created from the template could not commit `Pipfile.lock` / `package-lock.json` after `pipenv install` / `npm install`. The merge-all copy step only avoids copying stray locks from your machine; it does **not** change Git policy in generated repos.
 
    ```bash
-   pipenv run merge-all /path/to/merged_launchpad /path/to/Specifications --write-stub
+   pipenv run merge-all /path/to/merged_launchpad /path/to/Specifications
+   ```
+
+   To match a golden tree that includes **`.stage0-launch.yaml`** at the launchpad root (same content the Launch UI writes after bootstrap), add **`--write-stub`**. That file records the umbrella folder name (`info.slug`) for discovery:
+
+   ```bash
+   pipenv run merge-all --write-stub /path/to/merged_launchpad /path/to/Specifications
    ```
 
    Override the templates parent (instead of `..`):  
