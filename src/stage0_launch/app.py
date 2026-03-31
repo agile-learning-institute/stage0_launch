@@ -11,7 +11,7 @@ from typing import Any
 
 from flask import Flask, Response, jsonify, render_template, request, stream_with_context
 
-from stage0_launch.config import CONTAINER_LAUNCHPAD, launchpad_dir
+from stage0_launch.config import CONTAINER_LAUNCHPAD, delete_enabled, launchpad_dir
 from stage0_launch.discovery import DiscoveryResult, discover, launchpad_specs_complete
 from stage0_launch.launchpad_stub import (
     read_stub_umbrella,
@@ -24,6 +24,7 @@ from stage0_launch.jobs.manager import JobManager
 from stage0_launch.operations.bootstrap import run_bootstrap
 from stage0_launch.operations.umbrella_ops import (
     UmbrellaContext,
+    cmd_build_services,
     cmd_clone_services,
     cmd_delete_services,
     cmd_launch_services,
@@ -121,6 +122,7 @@ def _status_payload() -> dict[str, Any]:
         "interactive_mode": interactive,
         "services": services,
         "launchpad_dir_warning": _bootstrap_launchpad_warning(bmode, lp),
+        "delete_enabled": delete_enabled(),
     }
 
 
@@ -315,10 +317,36 @@ def create_app() -> Flask:
         job = job_manager.start("clone-services", work)
         return jsonify({"job_id": job.id})
 
+    @app.post("/api/jobs/build-services")
+    def api_jobs_build_services():
+        if job_manager.current_running():
+            return jsonify({"error": "A job is already running"}), 409
+        data = request.get_json(force=True, silent=True) or {}
+        svcs = data.get("services")
+        if isinstance(svcs, list):
+            s = " ".join(str(x).strip() for x in svcs if str(x).strip())
+        elif isinstance(svcs, str):
+            s = svcs.strip()
+        else:
+            return jsonify({"error": "services must be a list or string"}), 400
+        if not s:
+            return jsonify({"error": "Select at least one service"}), 400
+
+        def work(log) -> None:
+            ctx = _ctx()
+            cmd_build_services(ctx, s, log)
+
+        job = job_manager.start("build-services", work)
+        return jsonify({"job_id": job.id})
+
     @app.post("/api/jobs/delete-services")
     def api_jobs_delete_services():
         if job_manager.current_running():
             return jsonify({"error": "A job is already running"}), 409
+        if not delete_enabled():
+            return jsonify(
+                {"error": "Delete is disabled; set DELETE_ENABLED=True to enable."}
+            ), 403
         data = request.get_json(force=True, silent=True) or {}
         svcs = data.get("services")
         if isinstance(svcs, list):

@@ -15,7 +15,11 @@ from stage0_launch.architecture_tasks import (
     LaunchRepoTask,
     collect_launch_tasks_for_services,
 )
-from stage0_launch.procutil import run_streaming, wait_for_git_remote_refs
+from stage0_launch.procutil import (
+    run_streaming,
+    run_streaming_with_one_retry,
+    wait_for_git_remote_refs,
+)
 from stage0_launch.runbook_merge import run_runbook_merge
 from stage0_launch.yqutil import yq_eval
 
@@ -298,7 +302,7 @@ def _launch_one_repo(
                 log=log,
                 line_prefix=line_prefix,
             )
-            run_streaming(
+            run_streaming_with_one_retry(
                 ["make", "publish-package"],
                 cwd=repo_path,
                 log=log,
@@ -313,7 +317,7 @@ def _launch_one_repo(
                     log=log,
                     line_prefix=line_prefix,
                 )
-                run_streaming(
+                run_streaming_with_one_retry(
                     ["npm", "run", "publish-package"],
                     cwd=repo_path,
                     env=_npm_env,
@@ -327,7 +331,7 @@ def _launch_one_repo(
                 log=log,
                 line_prefix=line_prefix,
             )
-            run_streaming(
+            run_streaming_with_one_retry(
                 ["pipenv", "run", "publish-package"],
                 cwd=repo_path,
                 log=log,
@@ -497,6 +501,61 @@ def umbrella_clone_services(
     log.flush()
 
 
+def umbrella_build_services(
+    ctx: UmbrellaContext, services_list: str, log: TextIO
+) -> None:
+    """Run ``build-package`` only for existing service repo directories (post-clone workflow)."""
+    source = ctx.service_source_dir
+    for svc in services_list.split():
+        if not svc:
+            continue
+        lines = _repo_lines_clone(ctx, svc)
+        if not lines:
+            continue
+        log.write(f"--- Domain: {svc} ---\n")
+        for repo_name, publish in lines:
+            if not repo_name:
+                continue
+            repo_full = f"{ctx.slug}_{repo_name}"
+            repo_path = source / repo_full
+            if not repo_path.is_dir():
+                log.write(
+                    f"  Skip {repo_full}: directory missing (clone this service first)\n"
+                )
+                log.flush()
+                continue
+            if not publish:
+                log.write(f"  Skip {repo_full}: no publish recipe in architecture\n")
+                log.flush()
+                continue
+            log.write(f"  Build-package {repo_full} ({publish})\n")
+            log.flush()
+            if publish == "make":
+                run_streaming(
+                    ["make", "build-package"],
+                    cwd=repo_path,
+                    log=log,
+                )
+            elif publish == "npm":
+                with npm_github_packages_auth_env() as _npm_env:
+                    run_streaming(
+                        ["npm", "run", "build-package"],
+                        cwd=repo_path,
+                        env=_npm_env,
+                        log=log,
+                    )
+            elif publish == "pipenv":
+                run_streaming(
+                    ["pipenv", "run", "build-package"],
+                    cwd=repo_path,
+                    log=log,
+                )
+            else:
+                raise RuntimeError(f"Unknown publish: {publish}")
+    log.write("Build complete.\n")
+    log.flush()
+
+
 def umbrella_delete_services_only(
     ctx: UmbrellaContext, services_list: str, log: TextIO
 ) -> None:
@@ -557,7 +616,9 @@ def cmd_launch_all(ctx: UmbrellaContext, log: TextIO) -> None:
     ctx.docker_login(log)
     start = int(time.time())
     run_streaming(["make", "build-package"], cwd=ctx.root, log=log)
-    run_streaming(["make", "publish-package"], cwd=ctx.root, log=log)
+    run_streaming_with_one_retry(
+        ["make", "publish-package"], cwd=ctx.root, log=log
+    )
     umbrella_launch_services(ctx, ctx.all_services, log)
     end = int(time.time())
     log.write(
@@ -572,6 +633,10 @@ def cmd_launch_services(ctx: UmbrellaContext, services: str, log: TextIO) -> Non
 
 def cmd_clone_services(ctx: UmbrellaContext, services: str, log: TextIO) -> None:
     umbrella_clone_services(ctx, services, log)
+
+
+def cmd_build_services(ctx: UmbrellaContext, services: str, log: TextIO) -> None:
+    umbrella_build_services(ctx, services, log)
 
 
 def confirm_delete_services(

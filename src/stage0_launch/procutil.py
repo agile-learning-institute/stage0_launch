@@ -45,6 +45,33 @@ def run_streaming(
             raise RuntimeError(f"Command failed ({proc.returncode}): {display}")
 
 
+def run_streaming_with_one_retry(
+    cmd: list[str],
+    *,
+    cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
+    log: TextIO,
+    line_prefix: str = "",
+    pause_s: float = 3.0,
+    retry_note: str = "retrying once after a short pause",
+) -> None:
+    """
+    Run ``run_streaming``; on ``RuntimeError`` (non-zero exit), log, wait, then run again once.
+    Used for network-sensitive steps such as ``publish-package``.
+    """
+    pfx = line_prefix or ""
+    try:
+        run_streaming(cmd, cwd=cwd, env=env, log=log, line_prefix=line_prefix)
+    except RuntimeError as exc:
+        display = " ".join(cmd)
+        log.write(
+            f"{pfx}Command failed ({exc}); {retry_note} ({pause_s:g}s)…\n"
+        )
+        log.flush()
+        time.sleep(pause_s)
+        run_streaming(cmd, cwd=cwd, env=env, log=log, line_prefix=line_prefix)
+
+
 def sleep_s(seconds: float, log: TextIO, *, line_prefix: str = "") -> None:
     pfx = line_prefix or ""
     log.write(f"{pfx}(sleep {seconds}s)\n")

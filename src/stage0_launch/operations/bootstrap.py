@@ -13,7 +13,11 @@ from stage0_launch.operations.umbrella_ops import (
     cmd_launch_all,
     github_token_from_env,
 )
-from stage0_launch.procutil import run_streaming, wait_for_git_remote_refs
+from stage0_launch.procutil import (
+    run_streaming,
+    run_streaming_with_one_retry,
+    wait_for_git_remote_refs,
+)
 from stage0_launch.runbook_merge import run_runbook_merge
 
 
@@ -100,7 +104,9 @@ def run_bootstrap(specs_dir: Path, launchpad: Path, log: TextIO) -> None:
     ctx.git_https_setup(log)
     ctx.docker_login(log)
     run_streaming(["make", "build-package"], cwd=umbrella_dir, log=log)
-    run_streaming(["make", "publish-package"], cwd=umbrella_dir, log=log)
+    run_streaming_with_one_retry(
+        ["make", "publish-package"], cwd=umbrella_dir, log=log
+    )
 
     log.write("=== 6. Commit and push umbrella ===\n")
     log.flush()

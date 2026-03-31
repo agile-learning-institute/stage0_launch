@@ -7,6 +7,15 @@ from pathlib import Path
 CONTAINER_LAUNCHPAD = Path("/Launchpad")
 
 
+def delete_enabled() -> bool:
+    """
+    When ``DELETE_ENABLED`` is exactly the string ``True``, interactive Delete and
+    ``/api/jobs/delete-services`` are allowed. Otherwise the Delete control is hidden
+    and the API returns 403.
+    """
+    return os.environ.get("DELETE_ENABLED", "").strip() == "True"
+
+
 def launchpad_dir() -> Path:
     """
     Resolve the launchpad root.

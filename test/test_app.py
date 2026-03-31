@@ -151,6 +151,15 @@ def test_api_status_interactive_with_stub(client, tmp_path):
     assert data["interactive_mode"] is True
     assert data["slug"] == "p9"
     assert "dom1" in (data.get("services") or [])
+    assert data.get("delete_enabled") is False
+
+
+def test_api_status_delete_enabled_true(monkeypatch, client, tmp_path):
+    monkeypatch.setenv("DELETE_ENABLED", "True")
+    write_three_specs(tmp_path / "p9" / "Specifications", slug="p9")
+    write_stub(tmp_path, "p9")
+    r = client.get("/api/status")
+    assert r.get_json().get("delete_enabled") is True
 
 
 def test_api_status_invalid_stub(client, tmp_path):
@@ -232,3 +241,71 @@ def test_bootstrap_job_requires_pasted_specs(monkeypatch, tmp_path):
     r = c.post("/api/jobs/bootstrap")
     assert r.status_code == 400
     assert "Paste" in (r.get_json() or {}).get("error", "")
+
+
+def test_api_delete_services_forbidden_when_delete_disabled(monkeypatch, tmp_path):
+    monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
+    monkeypatch.delenv("DELETE_ENABLED", raising=False)
+    write_three_specs(tmp_path / "p9" / "Specifications", slug="p9")
+    write_stub(tmp_path, "p9")
+    app = create_app()
+    app.config["TESTING"] = True
+    c = app.test_client()
+    r = c.post(
+        "/api/jobs/delete-services",
+        data=json.dumps(
+            {
+                "services": ["dom1"],
+                "i_confirm_delete_services": "yes",
+                "i_confirm_slug": "p9",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert r.status_code == 403
+    assert "DELETE_ENABLED" in (r.get_json() or {}).get("error", "")
+
+
+def test_api_delete_services_allowed_when_delete_enabled(monkeypatch, tmp_path):
+    monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
+    monkeypatch.setenv("DELETE_ENABLED", "True")
+    write_three_specs(tmp_path / "p9" / "Specifications", slug="p9")
+    write_stub(tmp_path, "p9")
+    monkeypatch.setattr("stage0_launch.app.cmd_delete_services", lambda *a, **k: None)
+    app = create_app()
+    app.config["TESTING"] = True
+    c = app.test_client()
+    r = c.post(
+        "/api/jobs/delete-services",
+        data=json.dumps(
+            {
+                "services": ["dom1"],
+                "i_confirm_delete_services": "yes",
+                "i_confirm_slug": "p9",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert r.status_code == 200
+    assert "job_id" in r.get_json()
+
+
+def test_api_build_services_starts_job(monkeypatch, tmp_path):
+    monkeypatch.setenv("LAUNCHPAD_DIR", str(tmp_path))
+    write_three_specs(tmp_path / "p9" / "Specifications", slug="p9")
+    write_stub(tmp_path, "p9")
+
+    def fake_build(ctx, services, log):
+        log.write(f"stub build {services}\n")
+
+    monkeypatch.setattr("stage0_launch.app.cmd_build_services", fake_build)
+    app = create_app()
+    app.config["TESTING"] = True
+    c = app.test_client()
+    r = c.post(
+        "/api/jobs/build-services",
+        data=json.dumps({"services": ["dom1"]}),
+        content_type="application/json",
+    )
+    assert r.status_code == 200
+    assert "job_id" in r.get_json()

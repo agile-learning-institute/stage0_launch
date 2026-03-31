@@ -74,6 +74,7 @@
     <div class="toolbar">
       <button type="button" class="primary" id="btn-launch">Launch</button>
       <button type="button" id="btn-clone">Clone</button>
+      <button type="button" id="btn-build">Build</button>
       <button type="button" class="danger" id="btn-delete">Delete</button>
       <button type="button" id="btn-exit-ops" title="Stop Stage0 Launch and shut down this container">Exit</button>
     </div>
@@ -164,6 +165,8 @@
           serviceList.appendChild(li);
         });
         $('check-all').checked = false;
+        const delBtn = $('btn-delete');
+        delBtn.style.display = s.delete_enabled ? '' : 'none';
       }
     }
 
@@ -377,6 +380,12 @@
       const sv = selectedServices();
       if (!sv.length) { alert('Select at least one service.'); return; }
       postJob('/api/jobs/clone-services', { services: sv }, 'Clone services');
+    };
+
+    $('btn-build').onclick = () => {
+      const sv = selectedServices();
+      if (!sv.length) { alert('Select at least one service.'); return; }
+      postJob('/api/jobs/build-services', { services: sv }, 'Build services');
     };
 
     $('btn-delete').onclick = () => {

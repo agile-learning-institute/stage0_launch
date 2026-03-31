@@ -1,6 +1,6 @@
 # Stage0 Launch
 
-Flask web UI and API to **bootstrap** a new umbrella (from pasted specifications) and run **Launch** / **Clone** / **Delete** on **selected** service domains.
+Flask web UI and API to **bootstrap** a new umbrella (from pasted specifications) and run **Launch** / **Clone** / **Build** / **Delete** on **selected** service domains. **Launch** and bootstrap retry **`publish-package`** once if it fails (transient network issues).
 
 ## Quick start
 
@@ -20,13 +20,14 @@ docker run -d --rm --name stage0_launch \
   -e GITHUB_USERNAME \
   -e STAGE0_LAUNCH_CONTAINER_NAME=stage0_launch \
   ghcr.io/agile-learning-institute/stage0_launch:latest
+# Optional: insert before the image line:  -e DELETE_ENABLED=True  \  (exact string; see Environment).
 ```
 
 Open **http://localhost:8080**.
 
 ### GitHub token and username
 
-Use [this link](https://github.com/settings/tokens) to create a new GitHub **Classic** Token, with `repo`, `workflow`, `write:packages` scopes. If you want to use the *Delete* features of Stage0 tooling, also include `delete_repo` and `delete:package` scopes.
+Use [this link](https://github.com/settings/tokens) to create a new GitHub **Classic** Token, with `repo`, `workflow`, `write:packages` scopes. The interactive **Delete** button and **`/api/jobs/delete-services`** are disabled unless you set **`DELETE_ENABLED=True`** (see **Environment**). If you use delete, also include `delete_repo` and `delete:package` scopes on the token.
 
 If you want more information on Github Tokens, see [Creating a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens). 
 
@@ -64,19 +65,20 @@ Pasted specs are still saved under **`.stage0-bootstrap/specs/`** until bootstra
 ## Web UI
 
 - **Bootstrap**: title, optional non-empty warning, three text areas, **Launch** (validates against the bundled JSON Schema, saves, then starts the bootstrap job).
-- **Interactive**: checkbox list of domains, **All**, **Launch** / **Clone** / **Delete**. Job log opens in a modal (SSE).
+- **Interactive**: checkbox list of domains, **All**, **Launch** / **Clone** / **Build** / **Delete** (delete is shown only when **`DELETE_ENABLED=True`**). **Build** runs **`build-package`** only for selected domains whose repos already exist locally (typical workflow: **Clone** then **Build**). Job log opens in a modal (SSE).
 
 ## API (selected)
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/status` | Launchpad path, `bootstrap_mode`, `interactive_mode`, `discovery_*`, `services`, `launchpad_dir_warning` |
+| GET | `/api/status` | Launchpad path, `bootstrap_mode`, `interactive_mode`, `discovery_*`, `services`, `launchpad_dir_warning`, `delete_enabled` |
 | POST | `/api/specs/validate` | JSON `product_yaml`, `architecture_yaml`, `catalog_yaml` → `{ ok, errors[] }` |
 | POST | `/api/specs/paste` | Validates then saves YAML under `.stage0-bootstrap/specs/` |
 | POST | `/api/jobs/bootstrap` | Full bootstrap (requires pasted specs); writes `.stage0-launch.yaml` when the job completes successfully |
 | POST | `/api/jobs/launch-services` | JSON `services`: list of domain names or space-separated string |
 | POST | `/api/jobs/clone-services` | Same body |
-| POST | `/api/jobs/delete-services` | `services`, `i_confirm_delete_services`: `"yes"`, `i_confirm_slug` |
+| POST | `/api/jobs/build-services` | Same body: runs **`build-package`** only for existing service repo directories under the launchpad |
+| POST | `/api/jobs/delete-services` | `services`, `i_confirm_delete_services`: `"yes"`, `i_confirm_slug`. Requires **`DELETE_ENABLED=True`**; otherwise **403** |
 | GET | `/api/jobs/<id>` | Job status + full log |
 | GET | `/api/jobs/<id>/stream` | SSE log |
 
@@ -92,6 +94,7 @@ Pasted specs are still saved under **`.stage0-bootstrap/specs/`** until bootstra
 | `GITHUB_USERNAME` | **Primary.** GitHub login for `docker login ghcr.io` when publishing images. |
 | `GH_USERNAME` | Legacy alias; in the **container image**, the entrypoint mirrors **`GITHUB_USERNAME`** when unset. On the host, Compose can still map **`GH_USERNAME`** → **`GITHUB_USERNAME`**. |
 | `STAGE0_LAUNCH_CONTAINER_NAME` | Should match the Docker **`--name`** of this container so `docker inspect` can resolve launchpad bind mounts for nested `docker run`. |
+| `DELETE_ENABLED` | Set to the literal string **`True`** to show the Delete control and allow **`/api/jobs/delete-services`**. If unset or any other value, delete is hidden and the API returns **403**. |
 
 ## Local template testing (`merge-all` / `launchpad-test`)
 
