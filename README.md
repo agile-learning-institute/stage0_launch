@@ -38,6 +38,8 @@ Use this when **contributing** or when you prefer Compose over a plain **`docker
 ```bash
 export GITHUB_TOKEN='<your-personal-access-token>'
 export GITHUB_USERNAME='<your-github-login>'
+# Optional: enable Delete in the UI (literal True; same as plain docker run).
+# export DELETE_ENABLED=True
 pipenv install --dev   # optional; or use pip install -r / a local venv
 pipenv run compose-up    # runs: docker compose down && docker compose up --build -d
 ```
@@ -46,7 +48,9 @@ Open **http://localhost:8080** (or **`LAUNCH_HOST_PORT`**).
 
 The container uses **`/Launchpad`** as the launchpad root (the image creates it; Compose mounts your host folder there). Set **`LAUNCHPAD_HOST`** to the host directory to mount (default **`..`** relative to the compose file). You do **not** need **`LAUNCHPAD_DIR`** inside the container.
 
-**`docker-compose.yaml`** maps host credentials into the container the same way: host **`GITHUB_TOKEN`**, and **`GITHUB_USERNAME`**. The image entrypoint then syncs **`GITHUB_*`** and **`GH_*`** inside the container.
+**`docker-compose.yaml`** maps host credentials into the container the same way: host **`GITHUB_TOKEN`**, **`GITHUB_USERNAME`**, and optional **`DELETE_ENABLED`** (see **`Environment`**). The image entrypoint then syncs **`GITHUB_*`** and **`GH_*`** inside the container.
+
+**Umbrella `make stage0-launch-ui`:** runs **`docker run`** with the same **`ghcr.io/.../stage0_launch:latest`** ref as **`pipenv run container`** here. Docker uses a **local** image when that tag exists; otherwise it pulls.
 
 ## Launchpad layout
 

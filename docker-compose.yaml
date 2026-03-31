@@ -11,6 +11,8 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-${GH_TOKEN:?GITHUB_TOKEN or GH_TOKEN must be set}}
       # Prefer GITHUB_USERNAME; host may set only GH_USERNAME (legacy).
       GITHUB_USERNAME: ${GITHUB_USERNAME:-${GH_USERNAME:-}}
+      # Literal True enables Delete UI + /api/jobs/delete-services (omit or leave empty to keep off).
+      DELETE_ENABLED: ${DELETE_ENABLED:-}
       # Lets nested merge resolve the real bind source via ``docker inspect`` (not fragile findmnt paths on Desktop).
       STAGE0_LAUNCH_CONTAINER_NAME: stage0_launch
     volumes:
