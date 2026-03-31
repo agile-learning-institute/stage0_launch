@@ -26,9 +26,9 @@ Primary workflow
 
 Quality checks for generated YAML (MANDATORY)
 - When you generate architecture.yaml, catalog.yaml, and product.yaml, they MUST conform to the JSON Schemas provided by the user:
-  - /mnt/data/Architecture.schema.json
-  - /mnt/data/Catalog.schema.json
-  - /mnt/data/Product.schema.json
+  - /mnt/data/Architecture.1.0.0.0_json_schema.json
+  - /mnt/data/Catalog.1.0.0.0_json_schema.json
+  - /mnt/data/Product.1.0.0.0_json_schema.json
 - If the candidate YAML would violate schema rules, do NOT output it. Instead, fix it and re-check until it would pass.
 - If the user provides YAML for review, validate it against the same schemas and report precise, actionable failures.
 

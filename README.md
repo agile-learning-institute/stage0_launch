@@ -20,7 +20,6 @@ docker run -d --rm --name stage0_launch \
   -e GITHUB_USERNAME \
   -e STAGE0_LAUNCH_CONTAINER_NAME=stage0_launch \
   ghcr.io/agile-learning-institute/stage0_launch:latest
-# Optional: insert before the image line:  -e DELETE_ENABLED=True  \  (exact string; see Environment).
 ```
 
 Open **http://localhost:8080**.
@@ -49,8 +48,6 @@ Open **http://localhost:8080** (or **`LAUNCH_HOST_PORT`**).
 The container uses **`/Launchpad`** as the launchpad root (the image creates it; Compose mounts your host folder there). Set **`LAUNCHPAD_HOST`** to the host directory to mount (default **`..`** relative to the compose file). You do **not** need **`LAUNCHPAD_DIR`** inside the container.
 
 **`docker-compose.yaml`** maps host credentials into the container the same way: host **`GITHUB_TOKEN`**, **`GITHUB_USERNAME`**, and optional **`DELETE_ENABLED`** (see **`Environment`**). The image entrypoint then syncs **`GITHUB_*`** and **`GH_*`** inside the container.
-
-**Umbrella `make stage0-launch-ui`:** runs **`docker run`** with the same **`ghcr.io/.../stage0_launch:latest`** ref as **`pipenv run container`** here. Docker uses a **local** image when that tag exists; otherwise it pulls.
 
 ## Launchpad layout
 
@@ -142,3 +139,24 @@ Use **`pipenv run compose-up`** (see **Developer quick start**) so the app runs 
 ## Validate
 
 `pipenv run validate` runs a minimal host check stub; extend `validate_host.py` for full CI checks if needed.
+
+## Using Launch Delete Services
+
+The umbrella **`Makefile`** intentionally runs Launch **without** **`DELETE_ENABLED`** so delete stays off the beaten path. To work from the **umbrella repo root** with **Delete** enabled (and specs at `<umbrella>/Specifications` under a launchpad mount), use:
+
+```bash
+export GITHUB_TOKEN='<your-personal-access-token>'
+export GITHUB_USERNAME='<your-github-login>'
+
+docker run -d --rm --name stage0_launch_ui \
+  -p 8080:8080 \
+  -v "$(pwd)/..:/Launchpad" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e STAGE0_LAUNCH_CONTAINER_NAME=stage0_launch_ui \
+  -e GITHUB_TOKEN \
+  -e GITHUB_USERNAME \
+  -e DELETE_ENABLED=True \
+  ghcr.io/agile-learning-institute/stage0_launch:latest
+```
+
+Do **not** set **`LAUNCHPAD_DIR`** here; the app uses the **`/Launchpad`** mount (parent of the umbrella so `.stage0-launch.yaml` discovery and sibling service folders resolve). Use a token with **`delete_repo`** and **`delete:package`** if you will delete GitHub repos or packages. Open **http://localhost:8080**.
