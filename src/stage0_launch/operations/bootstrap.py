@@ -14,6 +14,7 @@ from stage0_launch.operations.umbrella_ops import (
     github_token_from_env,
 )
 from stage0_launch.procutil import (
+    run_git_clone_streaming_with_one_retry,
     run_streaming,
     run_streaming_with_one_retry,
     wait_for_git_remote_refs,
@@ -77,7 +78,7 @@ def run_bootstrap(specs_dir: Path, launchpad: Path, log: TextIO) -> None:
     log.flush()
     clone_url = f"https://x-access-token:{token}@github.com/{org}/{slug}.git"
     wait_for_git_remote_refs(clone_url, log)
-    run_streaming(["git", "clone", clone_url, slug], cwd=launchpad, log=log)
+    run_git_clone_streaming_with_one_retry(clone_url, slug, cwd=launchpad, log=log)
 
     log.write("=== 3. Merge specifications ===\n")
     log.flush()

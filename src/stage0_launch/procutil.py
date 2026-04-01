@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import time
 import urllib.parse
@@ -72,6 +73,46 @@ def run_streaming_with_one_retry(
         run_streaming(cmd, cwd=cwd, env=env, log=log, line_prefix=line_prefix)
 
 
+def run_git_clone_streaming_with_one_retry(
+    clone_url: str,
+    dest_name: str,
+    *,
+    cwd: Path,
+    log: TextIO,
+    line_prefix: str = "",
+    pause_s: float = 3.0,
+    retry_note: str = "retrying clone once after a short pause",
+) -> None:
+    """Clone after ``wait_for_git_remote_refs``; retry once on failure.
+
+    Removes a partially-created destination directory before retry so the second
+    ``git clone`` is not blocked by a non-empty folder.
+    """
+
+    def attempt() -> None:
+        run_streaming(
+            ["git", "clone", clone_url, dest_name],
+            cwd=cwd,
+            log=log,
+            line_prefix=line_prefix,
+        )
+
+    pfx = line_prefix or ""
+    dest = cwd / dest_name
+    try:
+        attempt()
+    except RuntimeError as exc:
+        display = f"git clone … {dest_name}"
+        log.write(
+            f"{pfx}Command failed ({exc}); {retry_note} ({pause_s:g}s)…\n"
+        )
+        log.flush()
+        if dest.exists():
+            shutil.rmtree(dest)
+        time.sleep(pause_s)
+        attempt()
+
+
 def sleep_s(seconds: float, log: TextIO, *, line_prefix: str = "") -> None:
     pfx = line_prefix or ""
     log.write(f"{pfx}(sleep {seconds}s)\n")
@@ -89,9 +130,12 @@ def wait_for_git_remote_refs(
 ) -> None:
     """Block until ``git ls-remote`` reports at least one ref (repo is non-empty).
 
-    After ``gh repo create --template …``, GitHub may take time to copy the
-    template and create the initial commit; cloning immediately yields an empty
-    working tree and breaks downstream steps (e.g. missing ``.stage0_template/process.yaml``).
+    After ``gh repo create --template …``, GitHub may lag before the remote is
+    visible (``ls-remote`` can return “Repository not found” or empty refs while
+    the API and storage catch up). Poll until success or ``timeout_s``.
+
+    A successful ``ls-remote`` with no refs yet means the template copy has
+    not produced an initial commit; that is retried the same way.
     """
     deadline = time.time() + timeout_s
     pfx = line_prefix or ""
@@ -101,6 +145,7 @@ def wait_for_git_remote_refs(
             urllib.parse.urlparse(clone_url)._replace(netloc="github.com")
         )
     attempt = 0
+    last_detail = ""
     while True:
         attempt += 1
         r = subprocess.run(
@@ -108,21 +153,27 @@ def wait_for_git_remote_refs(
             capture_output=True,
             text=True,
         )
-        if r.returncode != 0:
-            raise RuntimeError(
-                f"git ls-remote failed ({r.returncode}): "
-                f"{(r.stderr or r.stdout).strip() or 'no output'}"
-            )
-        if r.stdout.strip():
+        if r.returncode == 0 and r.stdout.strip():
             return
+
+        if r.returncode != 0:
+            detail = (r.stderr or r.stdout).strip() or "no output"
+            one_line = " ".join(detail.split())
+            if len(one_line) > 160:
+                one_line = one_line[:157] + "…"
+            last_detail = f"ls-remote exit {r.returncode}: {one_line}"
+        else:
+            last_detail = "remote has no refs yet (template copy may still be running)"
+
         if time.time() >= deadline:
             raise RuntimeError(
-                f"Timed out after {timeout_s}s waiting for remote to have commits "
-                f"({attempt} attempts): {safe_url}"
+                f"Timed out after {timeout_s}s waiting for remote to be ready "
+                f"({attempt} attempts): {safe_url}\n"
+                f"Last status: {last_detail}"
             )
         log.write(
-            f"{pfx}(waiting for GitHub template copy to finish, "
-            f"attempt {attempt}, next in {interval_s}s)…\n"
+            f"{pfx}(waiting for remote, attempt {attempt}, next in {interval_s}s — "
+            f"{last_detail})\n"
         )
         log.flush()
         time.sleep(interval_s)

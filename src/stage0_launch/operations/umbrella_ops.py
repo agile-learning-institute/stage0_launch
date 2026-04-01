@@ -16,6 +16,7 @@ from stage0_launch.architecture_tasks import (
     collect_launch_tasks_for_services,
 )
 from stage0_launch.procutil import (
+    run_git_clone_streaming_with_one_retry,
     run_streaming,
     run_streaming_with_one_retry,
     wait_for_git_remote_refs,
@@ -277,8 +278,9 @@ def _launch_one_repo(
     )
     clone_url = f"https://x-access-token:{token}@github.com/{repo}.git"
     wait_for_git_remote_refs(clone_url, log, line_prefix=line_prefix)
-    run_streaming(
-        ["git", "clone", clone_url, repo_full],
+    run_git_clone_streaming_with_one_retry(
+        clone_url,
+        repo_full,
         cwd=source,
         log=log,
         line_prefix=line_prefix,
