@@ -26,7 +26,7 @@ Open **http://localhost:8080**.
 
 ### GitHub token and username
 
-Use [this link](https://github.com/settings/tokens) to create a new GitHub **Classic** Token, with `repo`, `workflow`, `write:packages` scopes. The interactive **Delete** button and **`/api/jobs/delete-services`** are disabled unless you set **`DELETE_ENABLED=True`** (see **Environment**). If you use delete, also include `delete_repo` and `delete:package` scopes on the token.
+Use [this link](https://github.com/settings/tokens) to create a new GitHub **Classic** Token, with `repo`, `workflow`, `write:packages` scopes. 
 
 If you want more information on Github Tokens, see [Creating a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens). 
 
@@ -142,7 +142,7 @@ Use **`pipenv run compose-up`** (see **Developer quick start**) so the app runs 
 
 ## Using Launch Delete Services
 
-The umbrella **`Makefile`** intentionally runs Launch **without** **`DELETE_ENABLED`** so delete stays off the beaten path. To work from the **umbrella repo root** with **Delete** enabled (and specs at `<umbrella>/Specifications` under a launchpad mount), use:
+The umbrella **`Makefile`** intentionally runs Launch **without** **`DELETE_ENABLED`** so delete stays off the beaten path. To work from the **umbrella repo root** with **Delete** enabled (and specs at `<umbrella>/Specifications` under a launchpad mount), Your GITHUB_TOKEN will also need `delete_repo` and `delete:package` scopes. Use this command to launch with Delete Enabled:
 
 ```bash
 export GITHUB_TOKEN='<your-personal-access-token>'
